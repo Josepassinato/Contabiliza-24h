@@ -1,5 +1,5 @@
 {
-  "name": "contabiliza.ai---proposta-de-sistema",
+  "name": "contaflux-ia---proposta-de-sistema",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,7 +11,11 @@
   "dependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@google/genai": "latest"
+    "@google/genai": "latest",
+    "firebase/app": "latest",
+    "firebase/auth": "latest",
+    "firebase/firestore": "latest",
+    "firebase": "^12.5.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

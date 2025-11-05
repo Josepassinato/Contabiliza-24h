@@ -4,9 +4,10 @@ import MobileMockup from './MobileMockup';
 
 interface HeroSectionProps {
     onLogin: () => void;
+    onOpenVoiceAssistant: () => void;
 }
 
-const HeroSection: React.FC<HeroSectionProps> = ({ onLogin }) => {
+const HeroSection: React.FC<HeroSectionProps> = ({ onLogin, onOpenVoiceAssistant }) => {
     return (
         <section className="relative overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800/50"></div>
@@ -24,18 +25,21 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onLogin }) => {
                                 onClick={onLogin}
                                 className="w-full sm:w-auto bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 shadow-lg shadow-cyan-500/20"
                             >
-                                Acessar o Painel (Demo)
+                                Acessar o Painel
                             </button>
                             <a 
-                                href="mailto:contato@contabiliza.ai"
+                                href="mailto:contato@contaflux.ia"
                                 className="w-full sm:w-auto text-white font-semibold px-8 py-3 rounded-lg hover:bg-slate-800/50 transition-colors duration-300"
                             >
                                 Fale com um especialista
                             </a>
                         </div>
                     </div>
-                    <div>
-                        <MobileMockup />
+                    <div className="flex flex-col items-center">
+                        <p className="text-center text-slate-400 mb-4 text-sm font-medium animate-pulse">
+                            ↓ Veja como seu cliente vai interagir com o contador 24h ↓
+                        </p>
+                        <MobileMockup onOpenVoiceAssistant={onOpenVoiceAssistant} />
                     </div>
                 </div>
             </div>

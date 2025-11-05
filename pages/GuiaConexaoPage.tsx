@@ -14,7 +14,7 @@ const GuiaConexaoPage: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                    </svg>
                   <h1 className="text-2xl font-bold text-white">
-                    Contabiliza.<span className="text-cyan-400">AI</span>
+                    Contaflux <span className="text-cyan-400">IA</span>
                   </h1>
                 </div>
               </nav>
@@ -39,7 +39,7 @@ const GuiaConexaoPage: React.FC = () => {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bold text-white mb-2">Passo 2: Insira a Chave na Plataforma</h2>
-                                <p>Copie a chave gerada e cole no campo correspondente na tela de 'Gerenciar Conexões' da Contabiliza.AI ao adicionar uma nova conexão do tipo 'ERP Local'.</p>
+                                <p>Copie a chave gerada e cole no campo correspondente na tela de 'Gerenciar Conexões' da Contaflux IA ao adicionar uma nova conexão do tipo 'ERP Local'.</p>
                             </div>
                             <div>
                                 <h2 className="text-2xl font-bold text-white mb-2">Passo 3: Teste a Conexão</h2>

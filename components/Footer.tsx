@@ -6,7 +6,7 @@ const Footer: React.FC = () => {
             <div className="container mx-auto px-6 py-8">
                 <div className="text-center">
                     <p className="text-slate-500">
-                        &copy; {new Date().getFullYear()} Contabiliza.AI. Todos os direitos reservados.
+                        &copy; {new Date().getFullYear()} Contaflux IA. Todos os direitos reservados.
                     </p>
                 </div>
             </div>

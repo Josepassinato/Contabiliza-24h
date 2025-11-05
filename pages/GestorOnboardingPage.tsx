@@ -10,7 +10,7 @@ const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onC
     const [step, setStep] = useState(1);
     const [isLinkCopied, setIsLinkCopied] = useState(false);
 
-    const accessLink = `https://contabiliza.ai/chat/${client.id.substring(0, 8)}`;
+    const accessLink = `https://contaflux.ia/chat/${client.id.substring(0, 8)}`;
 
     const handleCopyLink = () => {
         navigator.clipboard.writeText(accessLink);
@@ -90,7 +90,7 @@ const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onC
                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
                        </svg>
                       <h1 className="text-3xl font-bold text-white">
-                        Contabiliza.<span className="text-cyan-400">AI</span>
+                        Contaflux <span className="text-cyan-400">IA</span>
                       </h1>
                     </div>
                     <h1 className="text-4xl font-extrabold text-white">Configuração de Acesso</h1>

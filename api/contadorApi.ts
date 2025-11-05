@@ -1,101 +1,111 @@
+import { db } from '../firebase/config';
+import { 
+    collection, 
+    query, 
+    where, 
+    getDocs, 
+    addDoc, 
+    updateDoc, 
+    doc, 
+    serverTimestamp,
+    writeBatch
+} from 'firebase/firestore';
 
-import { Client, Platform } from '../contexts/ContadorContext';
+// --- Types ---
+export interface Client {
+    id: string;
+    name: string;
+    email: string;
+    status: 'Ativo' | 'Pendente' | 'Inativo';
+    createdAt: any; // Can be Firebase Timestamp
+    contadorId: string;
+}
 
-// --- Mock Data ---
+export interface Platform {
+    id: string;
+    name: string;
+    logo: string; // URL to logo
+    connected: boolean;
+    contadorId: string;
+}
 
-const initialPlatforms: Platform[] = [
-    { id: 'p1', name: 'Sistema ERP Local', logo: 'https://img.icons8.com/fluency/48/database.png', connected: true },
-    { id: 'p2', name: 'Banco Inter Empresas', logo: 'https://img.icons8.com/color/48/inter-butt.png', connected: false },
-    { id: 'p3', name: 'Conta Azul', logo: 'https://img.icons8.com/color/48/contaazul.png', connected: true },
-    { id: 'p4', name: 'Omie', logo: 'https://img.icons8.com/dusk/64/o.png', connected: false },
+// --- Default Data for Seeding ---
+const defaultPlatforms = [
+    { name: 'ERP Local (desktop)', logo: 'https://cdn-icons-png.flaticon.com/512/2305/2305885.png', connected: true },
+    { name: 'ContaAzul', logo: 'https://pbs.twimg.com/profile_images/1491135894165213192/pU9POk1K_400x400.jpg', connected: true },
+    { name: 'Omie', logo: 'https://play-lh.googleusercontent.com/AEa2xFhAb5l-h3-5D702D9s_4Zf-WVEs35tpr0sE2xUflQ-3Q72i_4j_v821-39Eun0', connected: false },
+    { name: 'QuickBooks', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Intuit_QuickBooks_logo.svg/1200px-Intuit_QuickBooks_logo.svg.png', connected: false },
 ];
 
-const initialClients: Client[] = [
-    { id: 'c1', name: 'Padaria Pão Quente', email: 'contato@paoquente.com', status: 'Ativo', lastActivity: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'c2', name: 'Oficina do Zé', email: 'ze@oficina.com', status: 'Ativo', lastActivity: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'c3', name: 'Mercado da Esquina', email: 'compras@mercadoesquina.com.br', status: 'Pendente', lastActivity: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() },
-    { id: 'c4', name: 'Consultoria Tech', email: 'ceo@techconsult.io', status: 'Inativo', lastActivity: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
-];
+// --- API Functions for Firestore ---
 
-const LS_KEYS = {
-    CLIENTS: 'contabiliza_clients',
-    PLATFORMS: 'contabiliza_platforms',
-};
+/**
+ * Checks if a contador has any platforms, and if not, seeds their account with the default ones.
+ * This is crucial for onboarding new accountants.
+ * @param contadorId The ID of the logged-in accountant.
+ */
+export const checkAndSeedPlatforms = async (contadorId: string): Promise<void> => {
+    if (!db) return; // Guard clause
+    const platformsRef = collection(db, 'platforms');
+    const q = query(platformsRef, where('contadorId', '==', contadorId));
+    const snapshot = await getDocs(q);
 
-// --- Helper Functions ---
-
-const simulateLatency = <T,>(data: T, delay: number = 500): Promise<T> => {
-    return new Promise(resolve => setTimeout(() => resolve(data), delay));
-};
-
-const initializeLocalStorage = () => {
-    if (!localStorage.getItem(LS_KEYS.CLIENTS)) {
-        localStorage.setItem(LS_KEYS.CLIENTS, JSON.stringify(initialClients));
-    }
-    if (!localStorage.getItem(LS_KEYS.PLATFORMS)) {
-        localStorage.setItem(LS_KEYS.PLATFORMS, JSON.stringify(initialPlatforms));
+    if (snapshot.empty) {
+        console.log(`No platforms found for contador ${contadorId}. Seeding default platforms.`);
+        const batch = writeBatch(db);
+        defaultPlatforms.forEach(platform => {
+            const newPlatRef = doc(collection(db, 'platforms'));
+            batch.set(newPlatRef, { ...platform, contadorId });
+        });
+        await batch.commit();
     }
 };
 
-initializeLocalStorage();
 
-const getClientsFromStorage = (): Client[] => JSON.parse(localStorage.getItem(LS_KEYS.CLIENTS) || '[]');
-const getPlatformsFromStorage = (): Platform[] => JSON.parse(localStorage.getItem(LS_KEYS.PLATFORMS) || '[]');
-
-// --- API Functions ---
-
-export const fetchClients = async (): Promise<Client[]> => {
-    const clients = getClientsFromStorage();
-    return simulateLatency(clients);
+export const fetchClients = async (contadorId: string): Promise<Client[]> => {
+    if (!db) return []; // Guard clause
+    const clientsRef = collection(db, 'clients');
+    const q = query(clientsRef, where('contadorId', '==', contadorId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
 };
 
-export const fetchPlatforms = async (): Promise<Platform[]> => {
-    const platforms = getPlatformsFromStorage();
-    return simulateLatency(platforms);
+export const fetchPlatforms = async (contadorId: string): Promise<Platform[]> => {
+    if (!db) return []; // Guard clause
+    const platformsRef = collection(db, 'platforms');
+    const q = query(platformsRef, where('contadorId', '==', contadorId));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Platform));
 };
 
-export const addClient = async (name: string, email: string): Promise<Client> => {
-    const clients = getClientsFromStorage();
-    const newClient: Client = {
-        id: `c${Date.now()}`,
+export const addClient = async (name: string, email: string, contadorId: string): Promise<Client> => {
+    if (!db) throw new Error("Database not configured"); // Throw error as we need to return a client
+    const clientsRef = collection(db, 'clients');
+    const newDoc = await addDoc(clientsRef, {
         name,
         email,
         status: 'Pendente',
-        lastActivity: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        contadorId,
+    });
+    return {
+        id: newDoc.id,
+        name,
+        email,
+        status: 'Pendente',
+        createdAt: new Date().toISOString(), // Return a temporary date for immediate UI update
+        contadorId,
     };
-    const updatedClients = [...clients, newClient];
-    localStorage.setItem(LS_KEYS.CLIENTS, JSON.stringify(updatedClients));
-    return simulateLatency(newClient);
 };
 
-export const updateClient = async (clientId: string, updates: Partial<Client>): Promise<Client> => {
-    let clients = getClientsFromStorage();
-    let clientToUpdate: Client | undefined;
-    clients = clients.map(c => {
-        if (c.id === clientId) {
-            clientToUpdate = { ...c, ...updates };
-            return clientToUpdate;
-        }
-        return c;
-    });
-    if (!clientToUpdate) throw new Error('Client not found');
-
-    localStorage.setItem(LS_KEYS.CLIENTS, JSON.stringify(clients));
-    return simulateLatency(clientToUpdate);
+export const updateClientStatus = async (clientId: string, status: Client['status']): Promise<void> => {
+    if (!db) return; // Guard clause
+    const clientRef = doc(db, 'clients', clientId);
+    await updateDoc(clientRef, { status });
 };
 
-export const updatePlatformConnection = async (platformId: string, connected: boolean): Promise<Platform> => {
-    let platforms = getPlatformsFromStorage();
-    let platformToUpdate: Platform | undefined;
-    platforms = platforms.map(p => {
-        if (p.id === platformId) {
-            platformToUpdate = { ...p, connected };
-            return platformToUpdate;
-        }
-        return p;
-    });
-    if (!platformToUpdate) throw new Error('Platform not found');
-
-    localStorage.setItem(LS_KEYS.PLATFORMS, JSON.stringify(platforms));
-    return simulateLatency(platformToUpdate);
+export const togglePlatformConnection = async (platformId: string, currentStatus: boolean): Promise<void> => {
+    if (!db) return; // Guard clause
+    const platformRef = doc(db, 'platforms', platformId);
+    await updateDoc(platformRef, { connected: !currentStatus });
 };

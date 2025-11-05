@@ -4,12 +4,14 @@ import GerenciarClientes from './GerenciarClientes';
 import GerenciarConexoes from './GerenciarConexoes';
 import Configuracoes from './Configuracoes';
 import { useContador } from '../contexts/ContadorContext';
+import VoiceAssistantModal from './VoiceAssistantModal'; // Import the new component
 
 interface DashboardProps {
     onShowOnboarding: () => void;
+    onOpenVoiceAssistant: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onShowOnboarding }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onShowOnboarding, onOpenVoiceAssistant }) => {
     const [activeComponent, setActiveComponent] = useState<'main' | 'clientes' | 'conexoes' | 'configuracoes'>('main');
     const { clients, platforms, isLoading } = useContador();
 
@@ -88,6 +90,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onShowOnboarding }) => {
                     </button>
                 </div>
             </div>
+
+            {/* Floating Action Button for Voice Assistant */}
+            <button
+                onClick={onOpenVoiceAssistant}
+                className="fixed bottom-8 right-8 bg-cyan-500 text-white w-16 h-16 rounded-full shadow-lg shadow-cyan-500/30 flex items-center justify-center hover:bg-cyan-600 transition-all duration-300 ease-in-out transform hover:scale-110 animate-pulse"
+                aria-label="Iniciar assistente de voz"
+                title="Iniciar assistente de voz"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+            </button>
         </div>
     );
 };

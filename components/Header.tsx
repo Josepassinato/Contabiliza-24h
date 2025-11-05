@@ -14,7 +14,7 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, onLogout }) => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
            </svg>
           <h1 className="text-2xl font-bold text-white">
-            Contabiliza.<span className="text-cyan-400">AI</span>
+            Contaflux <span className="text-cyan-400">IA</span>
           </h1>
         </div>
         {isLoggedIn ? (
@@ -26,7 +26,7 @@ const Header: React.FC<HeaderProps> = ({ isLoggedIn, onLogout }) => {
             </button>
         ) : (
           <a 
-            href="mailto:contato@contabiliza.ai" 
+            href="mailto:contato@contaflux.ia" 
             className="hidden md:inline-block bg-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-cyan-600 transition-colors duration-300"
           >
             Entrar em Contato

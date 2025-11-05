@@ -1,81 +1,134 @@
-
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
-import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
 import HeroSection from './components/HeroSection';
+import Dashboard from './components/Dashboard';
+import Footer from './components/Footer';
+import VoiceAssistantModal from './components/VoiceAssistantModal';
 import GestorOnboardingPage from './pages/GestorOnboardingPage';
+import LoginPage from './pages/LoginPage';
+import ClienteDashboard from './components/ClienteDashboard';
 import { useContador } from './contexts/ContadorContext';
-import { useNotifier } from './contexts/NotificationContext';
-import ProblemSolutionSection from './components/ProblemSolutionSection';
-import FeaturesSection from './components/FeaturesSection';
-import TechStackSection from './components/TechStackSection';
-import RoadmapSection from './components/RoadmapSection';
-import ArchitectureSection from './components/ArchitectureSection';
+import { useAuth } from './contexts/AuthContext';
+import { isFirebaseConfigured } from './firebase/config';
+import FirebaseConfigError from './components/FirebaseConfigError';
+import SaaSAdminDashboard from './pages/SaaSAdminDashboard';
+
+type AppState = 'landing' | 'login' | 'dashboard' | 'onboarding';
 
 const App: React.FC = () => {
-    // For demonstration, we'll simulate a login state.
-    // In a real app, this would come from a context, auth service, etc.
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    
-    // Onboarding state
-    const [showOnboarding, setShowOnboarding] = useState(false);
+    const { isLoggedIn, user, logout, isLoading } = useAuth();
     const { pendingInviteClient, setPendingInviteClient, updateClientStatus } = useContador();
-    const { addNotification } = useNotifier();
+    const [appState, setAppState] = useState<AppState>('landing');
+    const [isVoiceModalOpen, setVoiceModalOpen] = useState(false);
+    const [voiceModalMode, setVoiceModalMode] = useState<'demo' | 'real'>('demo');
 
-    // Check for pending client to start onboarding automatically
     useEffect(() => {
-        if (pendingInviteClient) {
-            setShowOnboarding(true);
+        if (isLoggedIn) {
+            setAppState('dashboard');
+        } else {
+            setAppState('landing');
         }
-    }, [pendingInviteClient]);
+    }, [isLoggedIn]);
 
-    const handleLogin = () => {
-        // Here you would have your login logic
-        setIsLoggedIn(true);
-        addNotification('Login bem-sucedido!', 'success');
+    const handleOpenVoiceAssistant = (mode: 'demo' | 'real') => {
+        setVoiceModalMode(mode);
+        setVoiceModalOpen(true);
     };
 
-    const handleLogout = () => {
-        setIsLoggedIn(false);
-    };
-
-    const handleShowOnboarding = () => {
-        setShowOnboarding(true);
-    };
-
-    const handleOnboardingComplete = async () => {
+    const handleCompleteOnboarding = () => {
         if (pendingInviteClient) {
-            await updateClientStatus(pendingInviteClient.id, 'Ativo');
-            addNotification(`${pendingInviteClient.name} agora está ativo!`, 'success');
+            updateClientStatus(pendingInviteClient.id, 'Ativo');
         }
-        setShowOnboarding(false);
         setPendingInviteClient(null);
+        setAppState('dashboard'); // Or maybe redirect to a specific client dashboard
+    };
+    
+    const handleShowOnboarding = () => {
+        if (pendingInviteClient) {
+            setAppState('onboarding');
+        }
+    };
+    
+    const handleLogout = () => {
+        logout();
+        setAppState('landing');
     };
 
-    if (showOnboarding && pendingInviteClient) {
-        return <GestorOnboardingPage client={pendingInviteClient} onComplete={handleOnboardingComplete} />;
+    if (!isFirebaseConfigured) {
+        return <FirebaseConfigError />;
     }
 
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <div className="text-center">
+                    <svg className="w-12 h-12 text-cyan-400 animate-spin mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="text-white text-xl mt-4">Carregando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    const renderContent = () => {
+        if (appState === 'onboarding' && pendingInviteClient) {
+            return <GestorOnboardingPage client={pendingInviteClient} onComplete={handleCompleteOnboarding} />;
+        }
+        
+        if (!isLoggedIn) {
+            if (appState === 'login') {
+                return <LoginPage />;
+            }
+            return (
+                <>
+                    <Header isLoggedIn={false} onLogout={() => {}} />
+                    <main>
+                        <HeroSection 
+                            onLogin={() => setAppState('login')} 
+                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('demo')} 
+                        />
+                    </main>
+                    <Footer />
+                </>
+            );
+        }
+
+        // User is logged in
+        return (
+             <>
+                <Header isLoggedIn={true} onLogout={handleLogout} />
+                <main>
+                    {user?.role === 'saas_admin' ? (
+                        <SaaSAdminDashboard />
+                    ) : user?.role === 'contador' ? (
+                        <Dashboard 
+                            onShowOnboarding={handleShowOnboarding} 
+                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('real')}
+                        />
+                    ) : (
+                        <ClienteDashboard 
+                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('real')}
+                        />
+                    )}
+                </main>
+            </>
+        );
+    };
+
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-300 font-sans">
-            <Header isLoggedIn={isLoggedIn} onLogout={handleLogout} />
-            <main className="flex-grow">
-                {isLoggedIn ? (
-                    <Dashboard onShowOnboarding={handleShowOnboarding} />
-                ) : (
-                    <>
-                        <HeroSection onLogin={handleLogin} />
-                        <ProblemSolutionSection />
-                        <FeaturesSection />
-                        <ArchitectureSection />
-                        <TechStackSection />
-                        <RoadmapSection />
-                    </>
-                )}
-            </main>
-            <Footer />
-        </div>
+        <>
+            {renderContent()}
+            {isVoiceModalOpen && (
+                <VoiceAssistantModal
+                    isOpen={isVoiceModalOpen}
+                    onClose={() => setVoiceModalOpen(false)}
+                    user={user}
+                    isDemo={voiceModalMode === 'demo'}
+                />
+            )}
+        </>
     );
 };
 
