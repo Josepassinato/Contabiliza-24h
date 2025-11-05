@@ -4,8 +4,9 @@ import { getFirestore, Firestore } from 'firebase/firestore';
 
 // Lê as credenciais do Firebase a partir das variáveis de ambiente,
 // com valores de fallback para facilitar a execução em ambientes de demonstração.
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyCHG3sQEtMHHOidAAzFBGmbtL607yM6O-c",
+// CORREÇÃO: A chave de API foi corrigida para corresponder à da captura de tela do usuário.
+export const firebaseConfig = {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyCHG3sQEfMHHOidAAzFBGmbtL607yM6O-c",
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "app-contaflux.firebaseapp.com",
   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "app-contaflux",
   storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "app-contaflux.appspot.com",

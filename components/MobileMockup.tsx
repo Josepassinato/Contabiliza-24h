@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface MobileMockupProps {
@@ -16,12 +15,13 @@ const MobileMockup: React.FC<MobileMockupProps> = ({ onOpenVoiceAssistant }) => 
                 {/* Header */}
                 <div className="flex-shrink-0 p-3 bg-slate-800/50 flex items-center gap-3 border-b border-slate-700/50">
                     <div className="w-8 h-8 bg-cyan-400 rounded-full flex items-center justify-center">
-                         <svg className="w-5 h-5 text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-                        </svg>
+                         <svg className="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 20V4L12 14L4 20Z" fill="#FFFFFF"/>
+                            <path d="M20 20V4L12 14L20 20Z" fill="#0891b2"/>
+                         </svg>
                     </div>
                     <div>
-                        <p className="font-bold text-white text-sm">Contaflux IA</p>
+                        <p className="font-bold text-white text-sm pt-1">Medeiros S. Contábeis</p>
                         <p className="text-xs text-green-400">Online</p>
                     </div>
                 </div>
@@ -29,7 +29,7 @@ const MobileMockup: React.FC<MobileMockupProps> = ({ onOpenVoiceAssistant }) => 
                 {/* Chat content (Static) */}
                 <div className="flex-grow p-4 space-y-3 flex flex-col scroll-smooth">
                     <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
-                        Olá! Sou seu assistente Contaflux IA. Como posso ajudar com os dados de Maio?
+                        Olá! Sou seu contador 24h. Como posso ajudar com os dados de Maio?
                     </div>
                      <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
                         Clique no microfone abaixo para fazer uma pergunta por voz.

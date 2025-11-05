@@ -25,7 +25,7 @@ const FeaturesSection: React.FC = () => {
                     <h2 className="text-3xl md:text-4xl font-bold text-white">A Ferramenta Definitiva para a Contabilidade Moderna</h2>
                     <p className="mt-4 text-slate-400">Vá além dos relatórios. Entregue valor contínuo e proativo para seus clientes.</p>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-16">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-16 max-w-5xl mx-auto">
                     <FeatureCard
                         icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
                         title="Dados Instantâneos e Dicas"
@@ -49,6 +49,12 @@ const FeaturesSection: React.FC = () => {
                         title="Menos Interrupções, Mais Estratégia"
                     >
                         Reduza drasticamente as chamadas e e-mails de rotina. Com as dúvidas comuns resolvidas pela IA, sua equipe se liberta da carga operacional para focar em consultoria de alto valor.
+                    </FeatureCard>
+                    <FeatureCard
+                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 012-2h2a2 2 0 012 2v1m-4 0h4m-4 0a1 1 0 01-1-1v-1a1 1 0 011-1h4a1 1 0 011 1v1a1 1 0 01-1 1m-4 0h4m-6 6v-3a1 1 0 011-1h2a1 1 0 011 1v3m-4 0h4" /></svg>}
+                        title="Sua Marca em Evidência"
+                    >
+                        Personalize a plataforma com o logo e as cores da sua contabilidade. Mostre ao seu cliente que seu escritório investe em tecnologia de ponta para oferecer o melhor serviço.
                     </FeatureCard>
                 </div>
             </div>

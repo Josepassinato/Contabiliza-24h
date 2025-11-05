@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { User } from '../contexts/AuthContext';
 import { Client, FinancialData } from '../api/contadorApi';
-import { isFirebaseConfigured } from '../firebase/config';
 
 interface VoiceAssistantModalProps {
     isOpen: boolean;
@@ -86,9 +85,11 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
 
     const getSystemInstruction = () => {
         const baseIntro = `Você é o Contaflux IA, um assistente contador especialista. Sua persona é direta, confiável e prestativa.`;
+        
+        const noiseHandlingInstruction = `IMPORTANTE: Se o áudio do usuário for ruidoso, ininteligível ou contiver muito barulho de fundo, peça educadamente para ele repetir em um ambiente mais silencioso. Não tente adivinhar a pergunta.`;
 
         if (isDemo) {
-            return `Você é o Contaflux IA para uma demonstração. Responda brevemente a perguntas sobre dados da 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e a maior despesa foi com 'Fornecedores' (R$20.000). Diga que não é uma boa ideia contratar agora. Inicie a conversa se apresentando.`;
+            return `Você é o Contaflux IA para uma demonstração. Responda brevemente a perguntas sobre dados da 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e a maior despesa foi com 'Fornecedores' (R$20.000). Diga que não é uma boa ideia contratar agora. Inicie a conversa se apresentando. ${noiseHandlingInstruction}`;
         }
 
         const dataContext = clientContext?.financialData
@@ -101,7 +102,7 @@ Suas funções, em ordem de prioridade, são:
 2.  **Monitor Fiscal Proativo**: Sua segunda função é agir como um monitor da saúde fiscal. Se identificar uma tendência ou ponto de atenção nos dados, mencione-o.
 3.  **Especialista Tributário**: Sua terceira função, APENAS quando inquirida sobre impostos, é responder a dúvidas tributárias. Nestes casos, sempre considere a legislação federal e estadual aplicável.`;
 
-        return `${baseIntro}\n${dataContext}\n${functionHierarchy}`;
+        return `${baseIntro}\n${noiseHandlingInstruction}\n${dataContext}\n${functionHierarchy}`;
     };
     
     const cleanup = useCallback(() => {
@@ -145,12 +146,11 @@ Suas funções, em ordem de prioridade, são:
             setStatus('processing'); 
 
             try {
-                // Read the Gemini API key from environment variables, with a fallback for demo environments.
-                // This is the correct and safe way to handle API keys on the client-side.
-                const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyCHG3sQEtMHHOidAAzFBGmbtL607yM6O-c";
+                // Use a dedicated Gemini API key. This is the fix for the "Network error".
+                const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyAq9EWFRjZbfx9qhdNpseddHmHOmQANFyw";
 
-                if (!isFirebaseConfigured || !geminiApiKey) {
-                    console.error("Firebase or Gemini API Key is not configured.");
+                if (!geminiApiKey) {
+                    console.error("Gemini API Key is not configured. Please set REACT_APP_GEMINI_API_KEY in your .env file.");
                     setStatus('error');
                     return;
                 }
@@ -269,11 +269,11 @@ Suas funções, em ordem de prioridade, são:
         listening: { text: "Ouvindo...", color: "text-cyan-400 animate-pulse" },
         processing: { text: "Conectando...", color: "text-yellow-400" },
         speaking: { text: "Contaflux IA está falando...", color: "text-green-400" },
-        error: { text: "Erro. Verifique a configuração da API Key ou a permissão do microfone.", color: "text-red-400" },
+        error: { text: "Erro. Verifique a configuração da Gemini API Key ou a permissão do microfone.", color: "text-red-400" },
     }
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={handleClose}>
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-slate-900 border border-slate-700/50 rounded-2xl w-full max-w-lg h-[80vh] max-h-[700px] flex flex-col shadow-2xl shadow-cyan-500/10" onClick={(e) => e.stopPropagation()}>
                 <header className="p-4 flex justify-between items-center border-b border-slate-700/50">
                     <h2 className="text-lg font-bold text-white">Assistente de Voz Contaflux IA</h2>
@@ -296,15 +296,22 @@ Suas funções, em ordem de prioridade, são:
                 <footer className="p-6 border-t border-slate-700/50 flex flex-col items-center justify-center">
                     <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ${status === 'listening' ? 'bg-cyan-500/20' : ''}`}>
                          <div className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300 ${status === 'listening' ? 'bg-cyan-500/30' : ''}`}>
-                             <div className="bg-cyan-500 text-white w-16 h-16 rounded-full shadow-lg shadow-cyan-500/30 flex items-center justify-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                             <div className="bg-cyan-500 text-white w-16 h-16 rounded-full shadow-lg shadow-cyan-500/30 flex items-center justify-center cursor-pointer transform hover:scale-110 transition-transform">
+                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                                 </svg>
                             </div>
-                         </div>
+                        </div>
                     </div>
-                    <p className={`mt-4 text-sm font-medium ${statusInfo[status].color}`}>{statusInfo[status].text}</p>
-                    {isDemo ? <p className="text-xs text-slate-500 mt-2">Modo Demonstração</p> : clientContext ? <p className="text-xs text-slate-500 mt-2">Contexto: {clientContext.name}</p> : null}
+                    <p className={`mt-4 text-sm font-medium ${statusInfo[status].color}`}>
+                        {statusInfo[status].text}
+                    </p>
+                    <button 
+                        onClick={handleClose} 
+                        className="mt-6 bg-slate-700 text-slate-300 font-semibold px-6 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 text-sm"
+                    >
+                        Encerrar Conversa
+                    </button>
                 </footer>
             </div>
         </div>
