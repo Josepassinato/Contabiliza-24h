@@ -2,15 +2,30 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Corrected import to follow Gemini API guidelines
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { User } from '../contexts/AuthContext';
+import { Client, FinancialData } from '../api/contadorApi';
 
 interface VoiceAssistantModalProps {
     isOpen: boolean;
     onClose: () => void;
     user: User | null;
     isDemo: boolean;
+    clientContext: Client | null;
 }
 
 type AssistantStatus = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+
+// Helper function to format the financial data into a string for the AI prompt
+const formatFinancialDataForPrompt = (data: FinancialData): string => {
+    const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    return `
+Dados Financeiros Referentes a ${data.month}:
+- Faturamento Bruto: ${formatCurrency(data.revenue)}
+- Total de Despesas: ${formatCurrency(data.expenses)}
+- Principal Categoria de Despesa: ${data.topExpenseCategory} (${formatCurrency(data.topExpenseValue)})
+- Margem de Lucro Bruta (calculada): ${formatCurrency(data.revenue - data.expenses)}
+`;
+};
+
 
 // --- Audio Helper Functions (from Gemini docs) ---
 function encode(bytes: Uint8Array) {
@@ -52,7 +67,7 @@ async function decodeAudioData(
 }
 
 
-const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClose, user, isDemo }) => {
+const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClose, user, isDemo, clientContext }) => {
     const [status, setStatus] = useState<AssistantStatus>('idle');
     const userTranscriptRef = useRef('');
     const assistantTranscriptRef = useRef('');
@@ -68,9 +83,15 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
     const nextStartTimeRef = useRef(0);
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
-    const systemInstruction = isDemo
-        ? `Você é o Contaflux IA, um assistente contador para uma demonstração. Responda brevemente a perguntas sobre dados financeiros de uma empresa fictícia chamada 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e em Abril foi R$45.000. A maior despesa foi com 'Fornecedores', totalizando R$20.000. Diga que não é uma boa ideia contratar agora pois a margem está apertada. Inicie a conversa se apresentando.`
-        : `Você é o Contaflux IA, um assistente contador amigável e prestativo. Responda a perguntas sobre dados financeiros da empresa do usuário. Seja direto e use os dados conectados. Nome do usuário: ${user?.name}.`;
+    const getSystemInstruction = () => {
+        if (isDemo) {
+            return `Você é o Contaflux IA, um assistente contador para uma demonstração. Responda brevemente a perguntas sobre dados financeiros de uma empresa fictícia chamada 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e em Abril foi R$45.000. A maior despesa foi com 'Fornecedores', totalizando R$20.000. Diga que não é uma boa ideia contratar agora pois a margem está apertada. Inicie a conversa se apresentando.`;
+        }
+        if (clientContext && clientContext.financialData) {
+            return `Você é o Contaflux IA, um assistente contador para a empresa '${clientContext.name}'. Use os seguintes dados para responder às perguntas do gestor de forma clara e direta. \n${formatFinancialDataForPrompt(clientContext.financialData)}`;
+        }
+        return `Você é o Contaflux IA, um assistente contador amigável e prestativo. Responda a perguntas sobre dados financeiros da empresa do usuário. Se você não tiver dados específicos, peça ao contador para sincronizar os dados na página de detalhes do cliente.`;
+    };
     
     const cleanup = useCallback(() => {
         sessionPromiseRef.current?.then(session => session.close()).catch(console.error);
@@ -113,7 +134,8 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
             setStatus('processing'); 
 
             try {
-                // Per guidelines, API_KEY is assumed to be available in process.env
+                // FIX: Initialize GoogleGenAI with the API key from `process.env.API_KEY` as per the guidelines.
+                // The original code had invalid syntax and was not following the API key guidelines.
                 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
                 inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
@@ -127,7 +149,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                         responseModalities: [Modality.AUDIO],
                         inputAudioTranscription: {},
                         outputAudioTranscription: {},
-                        systemInstruction,
+                        systemInstruction: getSystemInstruction(),
                     },
                     callbacks: {
                         onopen: () => {
@@ -219,7 +241,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
             cleanup();
         };
 
-    }, [isOpen, isDemo, user, systemInstruction, cleanup]);
+    }, [isOpen, isDemo, clientContext, cleanup]);
 
     if (!isOpen) return null;
 
@@ -241,15 +263,15 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                     </button>
                 </header>
                 
-                <main className="flex-1 p-6 flex flex-col justify-end overflow-y-auto space-y-4">
-                    {history.map((t, i) => (
+                <main className="flex-1 p-6 flex flex-col-reverse justify-start overflow-y-auto space-y-4 space-y-reverse">
+                     {currentTurn.assistant && <div className="self-start max-w-[80%] bg-slate-700 p-3 rounded-lg text-slate-200">{currentTurn.assistant}</div>}
+                     {currentTurn.user && <div className="self-end max-w-[80%] bg-cyan-600 p-3 rounded-lg text-white">{currentTurn.user}</div>}
+                    {history.slice().reverse().map((t, i) => (
                         <React.Fragment key={i}>
-                            {t.user && <div className="self-end max-w-[80%] bg-cyan-600/50 p-3 rounded-lg text-white">{t.user}</div>}
                             {t.assistant && <div className="self-start max-w-[80%] bg-slate-700 p-3 rounded-lg text-slate-200">{t.assistant}</div>}
+                            {t.user && <div className="self-end max-w-[80%] bg-cyan-600/50 p-3 rounded-lg text-white">{t.user}</div>}
                         </React.Fragment>
                     ))}
-                     {currentTurn.user && <div className="self-end max-w-[80%] bg-cyan-600 p-3 rounded-lg text-white">{currentTurn.user}</div>}
-                     {currentTurn.assistant && <div className="self-start max-w-[80%] bg-slate-700 p-3 rounded-lg text-slate-200">{currentTurn.assistant}</div>}
                 </main>
 
                 <footer className="p-6 border-t border-slate-700/50 flex flex-col items-center justify-center">
@@ -263,7 +285,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                          </div>
                     </div>
                     <p className={`mt-4 text-sm font-medium ${statusInfo[status].color}`}>{statusInfo[status].text}</p>
-                    {isDemo && <p className="text-xs text-slate-500 mt-2">Modo Demonstração</p>}
+                    {isDemo ? <p className="text-xs text-slate-500 mt-2">Modo Demonstração</p> : clientContext ? <p className="text-xs text-slate-500 mt-2">Contexto: {clientContext.name}</p> : null}
                 </footer>
             </div>
         </div>

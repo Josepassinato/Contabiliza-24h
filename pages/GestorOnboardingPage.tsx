@@ -9,6 +9,7 @@ interface GestorOnboardingPageProps {
 const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onComplete }) => {
     const [step, setStep] = useState(1);
     const [isLinkCopied, setIsLinkCopied] = useState(false);
+    const [isAuthorized, setIsAuthorized] = useState(false);
 
     const accessLink = `https://contaflux.ia/chat/${client.id.substring(0, 8)}`;
 
@@ -30,23 +31,53 @@ const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onC
                         </button>
                     </div>
                 );
-            case 2: // Facial Scan Simulation
+            
+            case 2: // Data Authorization
                 return (
                     <div>
-                         <h2 className="text-2xl font-bold text-white mb-2">Passo 1: Segurança com Face ID</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">Passo 1: Autorização de Dados</h2>
+                        <p className="text-slate-400 mb-6">Para funcionar, o assistente de IA precisa analisar os dados financeiros que seu contador conecta. Garantimos a total segurança e privacidade das suas informações.</p>
+                        
+                        <div className="flex items-start p-4 rounded-lg bg-slate-700/50 border border-slate-600/50 mb-6">
+                            <input
+                                id="authorization"
+                                type="checkbox"
+                                checked={isAuthorized}
+                                onChange={(e) => setIsAuthorized(e.target.checked)}
+                                className="h-5 w-5 rounded border-slate-500 bg-slate-800 text-cyan-500 focus:ring-cyan-500 mt-1"
+                            />
+                            <label htmlFor="authorization" className="ml-3 text-sm text-slate-300">
+                                Eu autorizo o Contaflux IA a processar os dados financeiros da minha empresa para fornecer insights e respostas.
+                            </label>
+                        </div>
+
+                        <button 
+                            onClick={() => setStep(3)} 
+                            disabled={!isAuthorized}
+                            className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            Continuar
+                        </button>
+                    </div>
+                );
+
+            case 3: // Facial Scan Simulation
+                return (
+                    <div>
+                         <h2 className="text-2xl font-bold text-white mb-2">Passo 2: Segurança com Face ID</h2>
                          <p className="text-slate-400 mb-6">Para sua segurança, usaremos reconhecimento facial. É rápido e garante que só você acesse os dados.</p>
                          <div className="w-48 h-48 mx-auto rounded-full border-4 border-dashed border-cyan-500/50 flex items-center justify-center my-8 animate-pulse">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                          </div>
-                         <button onClick={() => setStep(3)} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600">
+                         <button onClick={() => setStep(4)} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600">
                              Simular Escaneamento Facial
                          </button>
                     </div>
                 );
-            case 3: // Final Step - Access Link and PWA instructions
+            case 4: // Final Step - Access Link and PWA instructions
                 return (
                     <div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Passo 2: Seu Acesso Pessoal</h2>
+                        <h2 className="text-2xl font-bold text-white mb-2">Passo 3: Seu Acesso Pessoal</h2>
                         <p className="text-slate-400 mb-6">Sua conta está pronta! Use o link abaixo para acessar seu assistente sempre que precisar.</p>
                         
                         <div className="relative mb-6">

@@ -2,26 +2,24 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifier } from '../contexts/NotificationContext';
 
-const LoginPage: React.FC = () => {
+interface LoginPageProps {
+    onNavigateToRegister: () => void;
+}
+
+const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
     const { login } = useAuth();
     const { addNotification } = useNotifier();
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isLoading, setIsLoading] = useState<'contador' | 'gestor' | 'admin' | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = async (role: 'contador' | 'gestor' | 'admin') => {
-        if (!password) {
-            addNotification('Por favor, insira a senha.', 'error');
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!email || !password) {
+            addNotification('Por favor, preencha e-mail e senha.', 'error');
             return;
         }
-        setIsLoading(role);
-        
-        const roleEmails = {
-            contador: process.env.REACT_APP_CONTADOR_EMAIL || 'contador@contaflux.ia',
-            gestor: process.env.REACT_APP_GESTOR_EMAIL || 'gestor@paoquente.com',
-            admin: process.env.REACT_APP_ADMIN_EMAIL || 'admin@contaflux.ia',
-        };
-
-        const email = roleEmails[role];
+        setIsLoading(true);
 
         try {
             await login(email, password);
@@ -36,9 +34,21 @@ const LoginPage: React.FC = () => {
             }
             addNotification(message, 'error');
         } finally {
-            setIsLoading(null);
+            setIsLoading(false);
         }
     };
+
+    // Funções para login rápido de demonstração
+    const handleDemoLogin = (role: 'contador' | 'gestor' | 'admin') => {
+       const demoEmails = {
+            contador: process.env.REACT_APP_CONTADOR_EMAIL || 'contador@contaflux.ia',
+            gestor: process.env.REACT_APP_GESTOR_EMAIL || 'gestor@paoquente.com',
+            admin: process.env.REACT_APP_ADMIN_EMAIL || 'admin@contaflux.ia',
+        };
+       setEmail(demoEmails[role]);
+       setPassword('123456'); // Senha padrão para os usuários de demonstração
+    };
+
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-300 flex items-center justify-center p-4">
@@ -54,56 +64,60 @@ const LoginPage: React.FC = () => {
                     </div>
                     <h1 className="text-4xl font-extrabold text-white">Acesso ao Painel</h1>
                     <p className="text-slate-400 mt-2">
-                        Selecione um perfil e insira a senha para acessar a demonstração.
-                        <br />
-                        <span className="text-xs">(Crie os usuários no seu console Firebase com os e-mails do seu arquivo .env)</span>
+                        Entre com sua conta ou use os logins de demonstração.
                     </p>
                 </header>
                 <main className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8 space-y-6">
-                    <div>
-                        <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">Senha de Acesso</label>
-                        <input
-                            type="password"
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="******"
-                            className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                            required
-                        />
+                    <form onSubmit={handleLogin} className="space-y-4">
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                            <input
+                                type="email"
+                                id="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                placeholder="seu@email.com"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">Senha</label>
+                            <input
+                                type="password"
+                                id="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="******"
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                                required
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50"
+                        >
+                            {isLoading ? 'Entrando...' : 'Entrar'}
+                        </button>
+                    </form>
+                    
+                     <div className="text-center text-sm">
+                        <span className="text-slate-400">Não tem uma conta? </span>
+                        <button onClick={onNavigateToRegister} className="font-semibold text-cyan-400 hover:text-cyan-300">
+                            Cadastre-se
+                        </button>
                     </div>
 
                     <div className="relative">
-                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                            <div className="w-full border-t border-slate-700" />
-                       </div>
-                       <div className="relative flex justify-center">
-                            <span className="bg-slate-800/50 px-2 text-sm text-slate-500">Escolha o perfil para entrar</span>
-                       </div>
+                       <div className="absolute inset-0 flex items-center" aria-hidden="true"><div className="w-full border-t border-slate-700" /></div>
+                       <div className="relative flex justify-center"><span className="bg-slate-800/50 px-2 text-sm text-slate-500">Ou use um perfil de demo</span></div>
                     </div>
 
-                    <div className="space-y-4">
-                        <button
-                            onClick={() => handleLogin('contador')}
-                            disabled={!!isLoading}
-                            className="w-full flex items-center justify-center bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50"
-                        >
-                            {isLoading === 'contador' ? 'Entrando...' : 'Entrar como Contador'}
-                        </button>
-                        <button
-                            onClick={() => handleLogin('gestor')}
-                            disabled={!!isLoading}
-                            className="w-full flex items-center justify-center bg-indigo-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-indigo-600 transition-colors duration-300 disabled:opacity-50"
-                        >
-                            {isLoading === 'gestor' ? 'Entrando...' : 'Entrar como Gestor'}
-                        </button>
-                         <button
-                            onClick={() => handleLogin('admin')}
-                            disabled={!!isLoading}
-                            className="w-full flex items-center justify-center bg-slate-600 text-white font-semibold px-8 py-3 rounded-lg hover:bg-slate-500 transition-colors duration-300 disabled:opacity-50"
-                        >
-                            {isLoading === 'admin' ? 'Entrando...' : 'Entrar como Admin'}
-                        </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                         <button onClick={() => handleDemoLogin('contador')} className="text-xs py-2 px-1 rounded-md bg-slate-700 hover:bg-slate-600">Contador</button>
+                         <button onClick={() => handleDemoLogin('gestor')} className="text-xs py-2 px-1 rounded-md bg-slate-700 hover:bg-slate-600">Gestor</button>
+                         <button onClick={() => handleDemoLogin('admin')} className="text-xs py-2 px-1 rounded-md bg-slate-700 hover:bg-slate-600">Admin</button>
                     </div>
                 </main>
             </div>

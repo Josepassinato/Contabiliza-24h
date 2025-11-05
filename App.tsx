@@ -1,134 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth, User } from './contexts/AuthContext';
+import { useContador, Client } from './contexts/ContadorContext';
+
+// Components
 import Header from './components/Header';
-import HeroSection from './components/HeroSection';
-import Dashboard from './components/Dashboard';
 import Footer from './components/Footer';
+import HeroSection from './components/HeroSection';
+import FeaturesSection from './components/FeaturesSection';
+import Dashboard from './components/Dashboard';
 import VoiceAssistantModal from './components/VoiceAssistantModal';
-import GestorOnboardingPage from './pages/GestorOnboardingPage';
-import LoginPage from './pages/LoginPage';
 import ClienteDashboard from './components/ClienteDashboard';
-import { useContador } from './contexts/ContadorContext';
-import { useAuth } from './contexts/AuthContext';
+
+// Pages
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import SaaSAdminDashboard from './pages/SaaSAdminDashboard';
+import GestorOnboardingPage from './pages/GestorOnboardingPage';
+
+// Firebase config check
 import { isFirebaseConfigured } from './firebase/config';
 import FirebaseConfigError from './components/FirebaseConfigError';
-import SaaSAdminDashboard from './pages/SaaSAdminDashboard';
 
-type AppState = 'landing' | 'login' | 'dashboard' | 'onboarding';
+// A simple enum for app pages/views
+enum Page {
+    Landing,
+    Login,
+    Register,
+    Dashboard,
+    Onboarding,
+}
 
 const App: React.FC = () => {
-    const { isLoggedIn, user, logout, isLoading } = useAuth();
-    const { pendingInviteClient, setPendingInviteClient, updateClientStatus } = useContador();
-    const [appState, setAppState] = useState<AppState>('landing');
-    const [isVoiceModalOpen, setVoiceModalOpen] = useState(false);
-    const [voiceModalMode, setVoiceModalMode] = useState<'demo' | 'real'>('demo');
+    const { user, isLoggedIn, isLoading, logout } = useAuth();
+    const { pendingInviteClient, setPendingInviteClient } = useContador();
+    
+    // State for navigation and modals
+    const [currentPage, setCurrentPage] = useState<Page>(Page.Landing);
+    const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
+    const [voiceAssistantClientContext, setVoiceAssistantClientContext] = useState<Client | null>(null);
+    const [isDemoVoiceAssistant, setIsDemoVoiceAssistant] = useState(false);
 
+    // Effect to handle routing based on auth state
     useEffect(() => {
-        if (isLoggedIn) {
-            setAppState('dashboard');
-        } else {
-            setAppState('landing');
+        if (!isLoading) {
+            if (isLoggedIn) {
+                // If a gestor was just invited and is now logged in, they should see their dashboard.
+                if (user?.role === 'gestor') {
+                    setPendingInviteClient(null); // Clear any pending client since they are now logged in
+                }
+                setCurrentPage(Page.Dashboard);
+            } else {
+                // If there's a pending invite, show the onboarding page.
+                // Otherwise, show the landing page.
+                if (pendingInviteClient) {
+                    setCurrentPage(Page.Onboarding);
+                } else {
+                    setCurrentPage(Page.Landing);
+                }
+            }
         }
-    }, [isLoggedIn]);
-
-    const handleOpenVoiceAssistant = (mode: 'demo' | 'real') => {
-        setVoiceModalMode(mode);
-        setVoiceModalOpen(true);
-    };
-
-    const handleCompleteOnboarding = () => {
-        if (pendingInviteClient) {
-            updateClientStatus(pendingInviteClient.id, 'Ativo');
-        }
-        setPendingInviteClient(null);
-        setAppState('dashboard'); // Or maybe redirect to a specific client dashboard
-    };
+    }, [isLoggedIn, isLoading, user, pendingInviteClient, setPendingInviteClient]);
     
-    const handleShowOnboarding = () => {
-        if (pendingInviteClient) {
-            setAppState('onboarding');
-        }
-    };
-    
-    const handleLogout = () => {
-        logout();
-        setAppState('landing');
+    // Voice Assistant controls
+    const handleOpenVoiceAssistant = useCallback((context?: Client | null, isDemo: boolean = false) => {
+        setVoiceAssistantClientContext(context || null);
+        setIsDemoVoiceAssistant(isDemo);
+        setIsVoiceAssistantOpen(true);
+    }, []);
+
+    const handleCloseVoiceAssistant = () => {
+        setIsVoiceAssistantOpen(false);
+        setVoiceAssistantClientContext(null);
+        setIsDemoVoiceAssistant(false);
     };
 
+    const handleLogout = async () => {
+        await logout();
+        setCurrentPage(Page.Landing);
+    };
+
+    // Render loading state
+    if (isLoading) {
+        return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Carregando...</div>;
+    }
+    
+    // Render Firebase config error if not configured
     if (!isFirebaseConfigured) {
         return <FirebaseConfigError />;
     }
 
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-center">
-                    <svg className="w-12 h-12 text-cyan-400 animate-spin mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p className="text-white text-xl mt-4">Carregando...</p>
-                </div>
-            </div>
-        );
-    }
-
+    // Render based on auth status and current page
     const renderContent = () => {
-        if (appState === 'onboarding' && pendingInviteClient) {
-            return <GestorOnboardingPage client={pendingInviteClient} onComplete={handleCompleteOnboarding} />;
+        if (!isLoggedIn) {
+            switch (currentPage) {
+                case Page.Login:
+                    return <LoginPage onNavigateToRegister={() => setCurrentPage(Page.Register)} />;
+                case Page.Register:
+                    return <RegisterPage onNavigateToLogin={() => setCurrentPage(Page.Login)} />;
+                case Page.Onboarding:
+                     // This case is for a new gestor who isn't logged in yet but has a link
+                     if (pendingInviteClient) {
+                         return <GestorOnboardingPage client={pendingInviteClient} onComplete={() => {
+                             setPendingInviteClient(null);
+                             setCurrentPage(Page.Login);
+                         }} />
+                     }
+                    // Fallback to landing if no pending client
+                    setCurrentPage(Page.Landing);
+                    return null; // Will re-render with landing page
+                default: // Landing page
+                    return (
+                        <>
+                            <Header isLoggedIn={false} onLogout={() => {}} />
+                            <main>
+                                <HeroSection onLogin={() => setCurrentPage(Page.Login)} onOpenVoiceAssistant={() => handleOpenVoiceAssistant(null, true)} />
+                                <FeaturesSection />
+                            </main>
+                            <Footer />
+                        </>
+                    );
+            }
         }
         
-        if (!isLoggedIn) {
-            if (appState === 'login') {
-                return <LoginPage />;
+        // --- User is Logged In ---
+        if (user) {
+            if (user.status === 'pending') {
+                return (
+                     <div className="min-h-screen bg-slate-900 text-slate-300 flex items-center justify-center p-4">
+                        <div className="w-full max-w-md text-center bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8">
+                            <h1 className="text-2xl font-bold text-yellow-400 mb-4">Aguardando Aprovação</h1>
+                            <p className="text-slate-400 mb-6">Sua conta foi criada e está aguardando aprovação do administrador. Você será notificado por e-mail quando seu acesso for liberado.</p>
+                            <button onClick={handleLogout} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600">
+                                Sair
+                            </button>
+                        </div>
+                    </div>
+                );
             }
-            return (
-                <>
-                    <Header isLoggedIn={false} onLogout={() => {}} />
-                    <main>
-                        <HeroSection 
-                            onLogin={() => setAppState('login')} 
-                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('demo')} 
-                        />
-                    </main>
-                    <Footer />
-                </>
-            );
-        }
 
-        // User is logged in
-        return (
-             <>
-                <Header isLoggedIn={true} onLogout={handleLogout} />
-                <main>
-                    {user?.role === 'saas_admin' ? (
-                        <SaaSAdminDashboard />
-                    ) : user?.role === 'contador' ? (
-                        <Dashboard 
-                            onShowOnboarding={handleShowOnboarding} 
-                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('real')}
-                        />
-                    ) : (
-                        <ClienteDashboard 
-                            onOpenVoiceAssistant={() => handleOpenVoiceAssistant('real')}
-                        />
-                    )}
-                </main>
-            </>
-        );
+            switch (user.role) {
+                case 'saas_admin':
+                    return <SaaSAdminDashboard />;
+                case 'contador':
+                    return <Dashboard onOpenVoiceAssistant={handleOpenVoiceAssistant} />;
+                case 'gestor':
+                    // We can find the client data from the contador context if needed, but for now, we assume gestor doesn't need to pass a specific client object to the assistant.
+                    return <ClienteDashboard onOpenVoiceAssistant={() => handleOpenVoiceAssistant(null, false)} />;
+                default:
+                    return <div>Função de usuário desconhecida.</div>;
+            }
+        }
+        
+        // Fallback if something goes wrong
+        return <LoginPage onNavigateToRegister={() => setCurrentPage(Page.Register)} />;
     };
 
     return (
-        <>
+        <div className="bg-slate-900 text-slate-200 min-h-screen font-sans">
+            {isLoggedIn && user?.status === 'active' && <Header isLoggedIn={true} onLogout={handleLogout} />}
             {renderContent()}
-            {isVoiceModalOpen && (
-                <VoiceAssistantModal
-                    isOpen={isVoiceModalOpen}
-                    onClose={() => setVoiceModalOpen(false)}
-                    user={user}
-                    isDemo={voiceModalMode === 'demo'}
-                />
-            )}
-        </>
+            <VoiceAssistantModal 
+                isOpen={isVoiceAssistantOpen} 
+                onClose={handleCloseVoiceAssistant} 
+                user={user}
+                isDemo={isDemoVoiceAssistant}
+                clientContext={voiceAssistantClientContext}
+            />
+        </div>
     );
 };
 

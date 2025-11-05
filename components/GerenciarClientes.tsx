@@ -4,6 +4,7 @@ import { useContador, Client } from '../contexts/ContadorContext';
 interface GerenciarClientesProps {
     onBack: () => void;
     onOpenInvite: () => void;
+    onSelectClient: (client: Client) => void;
 }
 
 const statusClasses = {
@@ -12,7 +13,7 @@ const statusClasses = {
     Inativo: 'bg-slate-600/50 text-slate-400',
 };
 
-const ClientRow: React.FC<{ client: Client }> = ({ client }) => (
+const ClientRow: React.FC<{ client: Client, onSelect: (client: Client) => void }> = ({ client, onSelect }) => (
     <tr className="hover:bg-slate-700/50 transition-colors duration-200">
         <td className="px-6 py-4 whitespace-nowrap">
             <div className="text-sm font-medium text-white">{client.name}</div>
@@ -27,7 +28,7 @@ const ClientRow: React.FC<{ client: Client }> = ({ client }) => (
             {new Date(client.createdAt).toLocaleDateString()}
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <button className="text-cyan-400 hover:text-cyan-300">Detalhes</button>
+            <button onClick={() => onSelect(client)} className="text-cyan-400 hover:text-cyan-300">Detalhes</button>
         </td>
     </tr>
 );
@@ -93,7 +94,7 @@ const InviteClientForm: React.FC<{ onInviteSent: () => void }> = ({ onInviteSent
     );
 };
 
-const GerenciarClientes: React.FC<GerenciarClientesProps> = ({ onBack, onOpenInvite }) => {
+const GerenciarClientes: React.FC<GerenciarClientesProps> = ({ onBack, onOpenInvite, onSelectClient }) => {
     const { clients, isLoading, hasMoreClients, loadMoreClients, isFetchingMore } = useContador();
 
     return (
@@ -130,7 +131,7 @@ const GerenciarClientes: React.FC<GerenciarClientesProps> = ({ onBack, onOpenInv
                                 {isLoading && clients.length === 0 ? (
                                     <tr><td colSpan={4} className="text-center py-8 text-slate-400">Carregando clientes...</td></tr>
                                 ) : (
-                                    clients.map(client => <ClientRow key={client.id} client={client} />)
+                                    clients.map(client => <ClientRow key={client.id} client={client} onSelect={onSelectClient} />)
                                 )}
                             </tbody>
                              {hasMoreClients && (
