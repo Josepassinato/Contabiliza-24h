@@ -27,12 +27,29 @@ const MobileMockup: React.FC<MobileMockupProps> = ({ onOpenVoiceAssistant }) => 
                 </div>
 
                 {/* Chat content (Static) */}
-                <div className="flex-grow p-4 space-y-3 flex flex-col scroll-smooth">
+                <div className="flex-grow p-4 space-y-3 flex flex-col scroll-smooth overflow-y-auto">
                     <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
-                        Olá! Sou seu contador 24h. Como posso ajudar com os dados de Maio?
+                        Olá! Sou seu contador 24h. Aqui está um resumo rápido dos dados de Maio:
                     </div>
                      <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
-                        Clique no microfone abaixo para fazer uma pergunta por voz.
+                        - Desp. Fixas: R$ 12.500<br/>
+                        - Folha de Pag.: R$ 18.000<br/>
+                        - Prev. Impostos: R$ 4.200
+                    </div>
+                    <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
+                       Você pode me perguntar, por exemplo:
+                    </div>
+                     <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm border border-slate-600/50 text-slate-300 self-start rounded-bl-lg">
+                       "Qual foi o faturamento bruto?"
+                    </div>
+                     <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm border border-slate-600/50 text-slate-300 self-start rounded-bl-lg">
+                       "Compare as despesas com abril."
+                    </div>
+                    <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm border border-slate-600/50 text-slate-300 self-start rounded-bl-lg">
+                       "Temos caixa para uma nova contratação?"
+                    </div>
+                    <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm bg-slate-700 text-slate-300 self-start rounded-bl-lg">
+                        Clique no microfone abaixo para começar.
                     </div>
                 </div>
 
