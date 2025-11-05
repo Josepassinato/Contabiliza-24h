@@ -1,4 +1,3 @@
-
 import React from 'react';
 import MobileMockup from './MobileMockup';
 
@@ -15,10 +14,10 @@ const HeroSection: React.FC<HeroSectionProps> = ({ onLogin, onOpenVoiceAssistant
                 <div className="grid lg:grid-cols-2 gap-12 items-center">
                     <div className="text-center lg:text-left">
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-tight">
-                            Ofereça um <span className="text-cyan-400">contador 24h por dia</span> aos seus clientes.
+                            A IA que entrega <span className="text-cyan-400">dados, proatividade e expertise</span> para seus clientes.
                         </h1>
                         <p className="mt-6 text-lg md:text-xl text-slate-400 max-w-2xl mx-auto lg:mx-0">
-                            Transforme seu serviço com um assistente de IA que responde dúvidas em tempo real, dia e noite. Reduza em até 85% as chamadas de rotina ao escritório, elimine a perda de produtividade da sua equipe e foque no crescimento estratégico.
+                           Transforme a gestão do seu cliente com um assistente que apresenta dados instantaneamente, monitora a saúde fiscal da empresa e responde a complexas dúvidas tributárias, 24 horas por dia.
                         </p>
                         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
                             <button

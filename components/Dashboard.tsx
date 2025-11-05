@@ -15,7 +15,7 @@ import ClientOnboardingGuidePage from '../pages/ClientOnboardingGuidePage';
 // A simple type for dashboard views
 type DashboardView = 'overview' | 'clientes' | 'conexoes' | 'configuracoes' | 'cliente_detalhe' | 'guides' | 'guide_api' | 'guide_onboarding';
 
-const Dashboard: React.FC<{ onOpenVoiceAssistant: (client: Client) => void; }> = ({ onOpenVoiceAssistant }) => {
+const Dashboard: React.FC<{ onOpenVoiceAssistant: (client?: Client) => void; }> = ({ onOpenVoiceAssistant }) => {
     const { user } = useAuth();
     const { clients, platforms, isLoading } = useContador();
     const [currentView, setCurrentView] = useState<DashboardView>('overview');
@@ -60,11 +60,24 @@ const Dashboard: React.FC<{ onOpenVoiceAssistant: (client: Client) => void; }> =
                 return (
                     <section className="py-16">
                         <div className="container mx-auto px-6">
-                            <h1 className="text-4xl font-extrabold text-white">Painel do Contador</h1>
-                            <p className="text-slate-400 mt-2">Bem-vindo(a) de volta, {user?.name.split(' ')[0]}!</p>
+                             <div className="md:flex md:items-center md:justify-between mb-12">
+                                <div>
+                                    <h1 className="text-4xl font-extrabold text-white">Painel do Contador</h1>
+                                    <p className="text-slate-400 mt-2">Bem-vindo(a) de volta, {user?.name.split(' ')[0]}!</p>
+                                </div>
+                                 <div className="mt-4 md:mt-0">
+                                    <button 
+                                        onClick={() => onOpenVoiceAssistant()} 
+                                        className="bg-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-cyan-600 transition-colors duration-300 flex items-center gap-2"
+                                    >
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                        Falar com Assistente (Geral)
+                                    </button>
+                                </div>
+                            </div>
                             
                             {/* Stats Cards */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-2xl">
                                     <h3 className="text-slate-400 text-sm font-medium">Total de Clientes</h3>
                                     <p className="text-3xl font-bold text-white mt-2">{isLoading ? '...' : clients.length}</p>

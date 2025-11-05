@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import { User } from '../contexts/AuthContext';
 import { Client, FinancialData } from '../api/contadorApi';
+import { isFirebaseConfigured } from '../firebase/config';
 
 interface VoiceAssistantModalProps {
     isOpen: boolean;
@@ -84,13 +85,23 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
 
     const getSystemInstruction = () => {
+        const baseIntro = `Você é o Contaflux IA, um assistente contador especialista. Sua persona é direta, confiável e prestativa.`;
+
         if (isDemo) {
-            return `Você é o Contaflux IA, um assistente contador para uma demonstração. Responda brevemente a perguntas sobre dados financeiros de uma empresa fictícia chamada 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e em Abril foi R$45.000. A maior despesa foi com 'Fornecedores', totalizando R$20.000. Diga que não é uma boa ideia contratar agora pois a margem está apertada. Inicie a conversa se apresentando.`;
+            return `Você é o Contaflux IA para uma demonstração. Responda brevemente a perguntas sobre dados da 'Padaria Pão Quente'. O faturamento em Maio foi R$50.000, e a maior despesa foi com 'Fornecedores' (R$20.000). Diga que não é uma boa ideia contratar agora. Inicie a conversa se apresentando.`;
         }
-        if (clientContext && clientContext.financialData) {
-            return `Você é o Contaflux IA, um assistente contador para a empresa '${clientContext.name}'. Use os seguintes dados para responder às perguntas do gestor de forma clara e direta. \n${formatFinancialDataForPrompt(clientContext.financialData)}`;
-        }
-        return `Você é o Contaflux IA, um assistente contador amigável e prestativo. Responda a perguntas sobre dados financeiros da empresa do usuário. Se você não tiver dados específicos, peça ao contador para sincronizar os dados na página de detalhes do cliente.`;
+
+        const dataContext = clientContext?.financialData
+            ? `Você está atendendo a empresa '${clientContext.name}'. Use os seguintes dados para embasar suas respostas: ${formatFinancialDataForPrompt(clientContext.financialData)}`
+            : `Você está no modo geral. Se perguntado sobre dados específicos de um cliente, informe que precisa que o contador selecione um cliente e sincronize os dados primeiro.`;
+
+        const functionHierarchy = `
+Suas funções, em ordem de prioridade, são:
+1.  **Assistente de Dados Instantâneos**: Sua principal função é entregar dados financeiros e de performance de forma clara e instantânea quando solicitado. Ofereça dicas baseadas nos dados.
+2.  **Monitor Fiscal Proativo**: Sua segunda função é agir como um monitor da saúde fiscal. Se identificar uma tendência ou ponto de atenção nos dados, mencione-o.
+3.  **Especialista Tributário**: Sua terceira função, APENAS quando inquirida sobre impostos, é responder a dúvidas tributárias. Nestes casos, sempre considere a legislação federal e estadual aplicável.`;
+
+        return `${baseIntro}\n${dataContext}\n${functionHierarchy}`;
     };
     
     const cleanup = useCallback(() => {
@@ -134,9 +145,17 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
             setStatus('processing'); 
 
             try {
-                // FIX: Initialize GoogleGenAI with the API key from `process.env.API_KEY` as per the guidelines.
-                // The original code had invalid syntax and was not following the API key guidelines.
-                const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+                // Read the Gemini API key from environment variables, with a fallback for demo environments.
+                // This is the correct and safe way to handle API keys on the client-side.
+                const geminiApiKey = process.env.REACT_APP_GEMINI_API_KEY || "AIzaSyCHG3sQEtMHHOidAAzFBGmbtL607yM6O-c";
+
+                if (!isFirebaseConfigured || !geminiApiKey) {
+                    console.error("Firebase or Gemini API Key is not configured.");
+                    setStatus('error');
+                    return;
+                }
+                
+                const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
                 inputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
                 outputAudioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -250,7 +269,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
         listening: { text: "Ouvindo...", color: "text-cyan-400 animate-pulse" },
         processing: { text: "Conectando...", color: "text-yellow-400" },
         speaking: { text: "Contaflux IA está falando...", color: "text-green-400" },
-        error: { text: "Erro. Verifique o console ou a permissão do microfone.", color: "text-red-400" },
+        error: { text: "Erro. Verifique a configuração da API Key ou a permissão do microfone.", color: "text-red-400" },
     }
 
     return (
