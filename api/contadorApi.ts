@@ -1,20 +1,32 @@
+
+
+// api/contadorApi.ts
+
 import { db } from '../firebase/config';
-import { 
-    collection, 
-    query, 
-    where, 
-    getDocs, 
-    addDoc, 
-    updateDoc, 
-    doc, 
-    serverTimestamp,
-    writeBatch,
-    setDoc
-} from 'firebase/firestore';
+import { collection, getDocs, doc, addDoc, updateDoc, query, where, serverTimestamp } from 'firebase/firestore';
 
 // --- Types ---
+export type ConnectionType = 'api_key' | 'sync_agent' | 'generic_api';
 
-// Represents financial data synced from an external platform
+export interface Client {
+    id: string;
+    name: string;
+    email: string;
+    contadorId: string;
+    status: 'Ativo' | 'Pendente' | 'Inativo';
+    createdAt: string; // ISO string
+    financialData?: FinancialData | null;
+}
+
+export interface Platform {
+    id: string;
+    name: string;
+    logo: string;
+    connected: boolean;
+    contadorId: string;
+    connectionType: ConnectionType;
+}
+
 export interface FinancialData {
     month: string;
     revenue: number;
@@ -23,145 +35,132 @@ export interface FinancialData {
     topExpenseValue: number;
 }
 
-export interface Client {
-    id: string;
-    name:string;
-    email: string;
-    status: 'Ativo' | 'Pendente' | 'Inativo';
-    createdAt: any; // Can be Firebase Timestamp
-    contadorId: string;
-    financialData?: FinancialData | null; // Optional synced data
-}
 
-export interface Platform {
-    id: string;
-    name: string;
-    logo: string; // URL to logo
-    connected: boolean;
-    contadorId: string;
-}
+// --- API Functions ---
 
-// --- Default Data for Seeding ---
-const defaultPlatforms = [
-    { name: 'ERP Local (desktop)', logo: 'https://cdn-icons-png.flaticon.com/512/2305/2305885.png', connected: true },
-    { name: 'ContaAzul', logo: 'https://pbs.twimg.com/profile_images/1491135894165213192/pU9POk1K_400x400.jpg', connected: true },
-    { name: 'Omie', logo: 'https://play-lh.googleusercontent.com/AEa2xFhAb5l-h3-5D702D9s_4Zf-WVEs35tpr0sE2xUflQ-3Q72i_4j_v821-39Eun0', connected: false },
-    { name: 'QuickBooks', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Intuit_QuickBooks_logo.svg/1200px-Intuit_QuickBooks_logo.svg.png', connected: false },
+const INITIAL_PLATFORMS: Omit<Platform, 'id' | 'contadorId'>[] = [
+    { name: 'Domínio Sistemas', logo: 'https://seeklogo.com/images/D/dominio-sistemas-logo-BBE2C464DE-seeklogo.com.png', connected: false, connectionType: 'sync_agent' },
+    { name: 'Conta Azul', logo: 'https://theme.zdassets.com/theme_assets/9339399/6579f15757913346452f33f67185061444f1240a.png', connected: true, connectionType: 'api_key' },
+    { name: 'Omie', logo: 'https://assets-global.website-files.com/61fe607f35754982635a9f5c/61fe607f35754955c45a9fa1_omie-logo-2-500x281.png', connected: false, connectionType: 'api_key' },
+    { name: 'QuickBooks', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Intuit_QuickBooks_logo.svg/2560px-Intuit_QuickBooks_logo.svg.png', connected: false, connectionType: 'api_key' },
+    { name: 'Bling', logo: 'https://cdn.bling.com.br/bling-logos/bling-icon-100.png', connected: false, connectionType: 'api_key' },
+    { name: 'Tiny ERP', logo: 'https://tiny.com.br/images/logo/tiny-symbol-blue.svg', connected: false, connectionType: 'api_key' },
+    { name: 'Sage Brasil', logo: 'https://www.sage.com/pt-br/static-assets/images/sage_com_logo.svg', connected: false, connectionType: 'api_key' },
+    { name: 'API Genérica', logo: 'https://cdn-icons-png.flaticon.com/512/2164/2164828.png', connected: false, connectionType: 'generic_api' },
 ];
 
 
-// --- MOCK FINANCIAL DATA ---
-const mockFinancialApi = (clientName: string): Promise<FinancialData> => {
-    // This function simulates calling an external API like ContaAzul.
-    // In a real application, this would be a Firebase Cloud Function.
-    console.log(`Simulating API call for ${clientName}...`);
-    const revenue = Math.floor(Math.random() * (150000 - 30000 + 1)) + 30000;
-    const expenses = Math.floor(revenue * (Math.random() * (0.8 - 0.5) + 0.5));
-    const categories = ['Fornecedores', 'Aluguel', 'Marketing', 'Folha de Pagamento'];
-    const topCategory = categories[Math.floor(Math.random() * categories.length)];
+/**
+ * Fetches clients associated with a specific accountant.
+ */
+export const fetchClients = async (contadorId: string): Promise<Client[]> => {
+    if (!db) return [];
+    const clientsRef = collection(db, 'clients');
+    const q = query(clientsRef, where('contadorId', '==', contadorId));
+    const snapshot = await getDocs(q);
     
-    const data: FinancialData = {
-        month: 'Maio/2024',
-        revenue,
-        expenses,
-        topExpenseCategory: topCategory,
-        topExpenseValue: Math.floor(expenses * (Math.random() * (0.5 - 0.3) + 0.3)),
-    };
-    return new Promise(resolve => setTimeout(() => resolve(data), 1500));
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString(),
+    } as Client));
 };
 
-
-// --- API Functions for Firestore ---
-
 /**
- * Checks if a contador has any platforms, and if not, seeds their account with the default ones.
- * This is crucial for onboarding new accountants.
- * @param contadorId The ID of the logged-in accountant.
+ * Fetches and potentially creates default platforms for a specific accountant.
  */
-export const checkAndSeedPlatforms = async (contadorId: string): Promise<void> => {
-    if (!db) return; // Guard clause
+export const fetchPlatforms = async (contadorId: string): Promise<Platform[]> => {
+    if (!db) return [];
+    
     const platformsRef = collection(db, 'platforms');
     const q = query(platformsRef, where('contadorId', '==', contadorId));
     const snapshot = await getDocs(q);
-
+    
     if (snapshot.empty) {
-        console.log(`No platforms found for contador ${contadorId}. Seeding default platforms.`);
-        const batch = writeBatch(db);
-        defaultPlatforms.forEach(platform => {
-            const newPlatRef = doc(collection(db, 'platforms'));
-            batch.set(newPlatRef, { ...platform, contadorId });
+        // First-time setup: create default platforms and return them directly
+        // This avoids a second database read, making the initial load faster.
+        const createdPlatforms = await Promise.all(
+            INITIAL_PLATFORMS.map(async (platformData) => {
+                const docRef = await addDoc(platformsRef, { ...platformData, contadorId });
+                return {
+                    ...platformData,
+                    id: docRef.id,
+                    contadorId,
+                } as Platform;
+            })
+        );
+        return createdPlatforms;
+    }
+    
+    const platforms = snapshot.docs.map(
+      (doc) => ({ id: doc.id, ...doc.data() }) as Platform
+    );
+
+    return platforms;
+};
+
+/**
+ * Creates a new client invitation.
+ */
+export const inviteClient = async (contadorId: string, name: string, email: string): Promise<Client | null> => {
+     if (!db) return null;
+    try {
+        const docRef = await addDoc(collection(db, 'clients'), {
+            name,
+            email,
+            contadorId,
+            status: 'Pendente',
+            createdAt: serverTimestamp(),
         });
-        await batch.commit();
+        
+        const newClient: Client = {
+            id: docRef.id,
+            name,
+            email,
+            contadorId,
+            status: 'Pendente',
+            createdAt: new Date().toISOString(),
+        };
+        return newClient;
+    } catch (error) {
+        console.error("Error inviting client:", error);
+        return null;
     }
 };
 
 /**
- * SIMULATION of a Cloud Function that would connect to a third-party API,
- * fetch financial data, and store it in our Firestore.
- * @param client The client object.
+ * Updates a platform's connection status.
  */
-export const syncFinancialData = async (client: Client): Promise<FinancialData> => {
+export const updatePlatformConnection = async (contadorId: string, platformId: string, connected: boolean): Promise<void> => {
     if (!db) throw new Error("Database not configured");
-    
-    // 1. (REAL SCENARIO) Call a Cloud Function with client credentials.
-    // const result = await functions.httpsCallable('syncContaAzul')({ clientId: client.id });
-    
-    // 2. (SIMULATION) Call our mock API.
-    const data = await mockFinancialApi(client.name);
-
-    // 3. Store the synced data in a subcollection or on the client document itself.
-    // For simplicity, we'll store it on the client document.
-    const clientRef = doc(db, 'clients', client.id);
-    await updateDoc(clientRef, { financialData: data });
-
-    return data;
+    // Although contadorId is passed, we only need platformId to update the doc
+    const platformRef = doc(db, 'platforms', platformId);
+    await updateDoc(platformRef, { connected });
 };
 
 /**
- * Fetches the synced financial data for a specific client.
- * @param clientId The ID of the client.
+ * Simulates syncing financial data for a client.
+ * In a real app, this would fetch from an external API.
  */
-export const fetchFinancialData = async (clientId: string): Promise<FinancialData | null> => {
-    // This function is for demonstration. In the main app, we pass the client object
-    // which may already contain the data, reducing reads.
-    if (!db) return null;
-    // In a real app, you would fetch from the subcollection.
-    // For now, we assume it's on the client doc, but this illustrates the separation.
-    // This function isn't used in the current flow but is good practice to have.
-    return null; 
-};
+export const syncFinancialData = async (client: Client): Promise<FinancialData> => {
+    // Simulate API call latency
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
+    // Generate somewhat realistic mock data based on client name hash
+    const nameHash = client.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const baseRevenue = 80000 + (nameHash % 50000);
+    const revenue = baseRevenue + Math.floor(Math.random() * 20000) - 10000;
+    const expenses = revenue * (0.65 + Math.random() * 0.2); // 65% to 85% of revenue
+    const topExpenseValue = expenses * (0.3 + Math.random() * 0.2); // 30% to 50% of total expenses
 
-export const addClient = async (name: string, email: string, contadorId: string): Promise<Client> => {
-    if (!db) throw new Error("Database not configured"); // Throw error as we need to return a client
-    const clientsRef = collection(db, 'clients');
-    const newDoc = await addDoc(clientsRef, {
-        name,
-        email,
-        status: 'Pendente',
-        createdAt: serverTimestamp(),
-        contadorId,
-        financialData: null, // Initialize with no data
-    });
+    const expenseCategories = ['Fornecedores', 'Folha de Pagamento', 'Marketing', 'Aluguel', 'Impostos'];
+    const topExpenseCategory = expenseCategories[nameHash % expenseCategories.length];
+    
     return {
-        id: newDoc.id,
-        name,
-        email,
-        status: 'Pendente',
-        createdAt: new Date().toISOString(), // Return a temporary date for immediate UI update
-        contadorId,
-        financialData: null,
+        month: 'Maio/2024',
+        revenue: parseFloat(revenue.toFixed(2)),
+        expenses: parseFloat(expenses.toFixed(2)),
+        topExpenseCategory,
+        topExpenseValue: parseFloat(topExpenseValue.toFixed(2)),
     };
-};
-
-export const updateClientStatus = async (clientId: string, status: Client['status']): Promise<void> => {
-    if (!db) return; // Guard clause
-    const clientRef = doc(db, 'clients', clientId);
-    await updateDoc(clientRef, { status });
-};
-
-export const togglePlatformConnection = async (platformId: string, currentStatus: boolean): Promise<void> => {
-    if (!db) return; // Guard clause
-    const platformRef = doc(db, 'platforms', platformId);
-    await updateDoc(platformRef, { connected: !currentStatus });
 };

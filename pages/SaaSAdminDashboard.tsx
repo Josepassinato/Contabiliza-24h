@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import * as saasAdminApi from '../api/saasAdminApi';
-import { useAuth } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { useAuth } from '../contexts/AuthContext.tsx';
 import { useNotifier } from '../contexts/NotificationContext';
 
 const statusClasses = {

@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { Client, Platform, FinancialData, syncFinancialData } from '../api/contadorApi';
-import { useContador } from '../contexts/ContadorContext';
+// FIX: Added file extension to import for module resolution.
+import { useContador } from '../contexts/ContadorContext.tsx';
 import { useNotifier } from '../contexts/NotificationContext';
 import ChartComponent from '../components/ChartComponent';
 
@@ -16,6 +18,12 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
     const [client, setClient] = useState<Client>(initialClient);
     const [isSyncing, setIsSyncing] = useState(false);
 
+    useEffect(() => {
+        // This effect ensures that if the initialClient prop updates (e.g., from a parent list),
+        // the component's internal state reflects that change.
+        setClient(initialClient);
+    }, [initialClient]);
+
     const handleSyncData = async () => {
         setIsSyncing(true);
         addNotification(`Sincronizando dados para ${client.name}...`, 'success');
@@ -28,6 +36,81 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
             addNotification("Falha ao sincronizar dados.", "error");
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    const handleDownloadPdf = () => {
+        if (!client.financialData) {
+            addNotification('Dados financeiros não estão disponíveis para gerar o relatório.', 'error');
+            return;
+        }
+
+        const data = client.financialData;
+        const formattedRevenue = data.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formattedExpenses = data.expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formattedTopExpense = data.topExpenseValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        const formattedResult = (data.revenue - data.expenses).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+
+        const reportHtml = `
+            <html>
+                <head>
+                    <title>relatorio_financeiro_${client.name.replace(/\s+/g, '_').toLowerCase()}</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 2rem; color: #333; }
+                        h1 { color: #005f73; border-bottom: 2px solid #005f73; padding-bottom: 10px; }
+                        h2 { color: #0a9396; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+                        th { background-color: #f2f2f2; }
+                        .total { font-weight: bold; background-color: #e9ecef; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Relatório Financeiro</h1>
+                    <h2>${client.name}</h2>
+                    <p><strong>Período de Referência:</strong> ${data.month}</p>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Valor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Faturamento Bruto</td>
+                                <td>${formattedRevenue}</td>
+                            </tr>
+                            <tr>
+                                <td>Total de Despesas</td>
+                                <td>${formattedExpenses}</td>
+                            </tr>
+                            <tr>
+                                <td>Principal Categoria de Despesa (${data.topExpenseCategory})</td>
+                                <td>${formattedTopExpense}</td>
+                            </tr>
+                            <tr class="total">
+                                <td>Resultado (Faturamento - Despesas)</td>
+                                <td>${formattedResult}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </body>
+            </html>
+        `;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.open();
+            printWindow.document.write(reportHtml);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.print();
+            }, 250); // Delay to ensure content is rendered
+        } else {
+            addNotification('Não foi possível abrir a janela de impressão. Verifique se os pop-ups estão bloqueados.', 'error');
         }
     };
     
@@ -53,18 +136,14 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
                             <h1 className="text-4xl font-extrabold text-white">{client.name}</h1>
                             <p className="text-slate-400 mt-2">Detalhes do cliente e dados financeiros.</p>
                         </div>
-                         <div className="mt-4 md:mt-0 flex-shrink-0 flex space-x-3">
+                         <div className="mt-4 md:mt-0 flex-shrink-0 flex items-center gap-2">
                              <button
-                                onClick={handleSyncData}
-                                disabled={isSyncing}
-                                className="bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 disabled:opacity-50 flex items-center gap-2"
+                                onClick={handleDownloadPdf}
+                                disabled={!client.financialData || isSyncing}
+                                className="bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSyncing ? (
-                                     <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                ) : (
-                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7V9a1 1 0 01-2 0V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13V11a1 1 0 112 0v6a1 1 0 01-1 1h-6a1 1 0 110-2h2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
-                                )}
-                                {isSyncing ? 'Sincronizando...' : 'Sincronizar Dados'}
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                Baixar PDF
                             </button>
                              <button
                                 onClick={() => onOpenVoiceAssistant(client)}
@@ -87,10 +166,22 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
                                 <ChartComponent title="Visão Geral Financeira" data={chartData} />
                            </div>
                         ) : (
-                            <div className="text-center py-12">
+                            <div className="text-center py-12 flex flex-col items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4M4 7s0 0 0 0m16 0s0 0 0 0M12 11c-3.473 0-6.354.66-8 1.5M12 11c3.473 0 6.354.66 8 1.5" /></svg>
                                 <h3 className="mt-2 text-lg font-medium text-white">Nenhum dado financeiro encontrado</h3>
-                                <p className="mt-1 text-sm text-slate-400">Clique em "Sincronizar Dados" para buscar as informações mais recentes.</p>
+                                <p className="mt-1 text-sm text-slate-400 mb-6">Sincronize os dados para carregar o resumo financeiro do cliente.</p>
+                                <button
+                                    onClick={handleSyncData}
+                                    disabled={isSyncing}
+                                    className="bg-cyan-500 text-white font-semibold px-6 py-2 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isSyncing ? (
+                                         <svg className="w-5 h-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                    ) : (
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7V9a1 1 0 01-2 0V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13V11a1 1 0 112 0v6a1 1 0 01-1 1h-6a1 1 0 110-2h2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" /></svg>
+                                    )}
+                                    {isSyncing ? 'Sincronizando...' : 'Sincronizar Dados'}
+                                </button>
                             </div>
                         )}
                     </div>

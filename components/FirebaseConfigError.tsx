@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { testFirebaseConnection } from '../firebase/config';
+import { configError, testFirebaseConnection } from '../firebase/config';
 
 const FirebaseConfigError: React.FC = () => {
     const [isTesting, setIsTesting] = useState(false);

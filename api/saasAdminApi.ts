@@ -1,6 +1,8 @@
+
 import { db } from '../firebase/config';
 import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-import { User } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { User } from '../contexts/AuthContext.tsx';
 
 
 // --- Types for SaaS Admin ---

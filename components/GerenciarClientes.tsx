@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
-import { useContador, Client } from '../contexts/ContadorContext';
+// FIX: Added file extension to import for module resolution.
+import { useContador, Client } from '../contexts/ContadorContext.tsx';
 
 interface GerenciarClientesProps {
     onBack: () => void;
@@ -95,7 +97,7 @@ const InviteClientForm: React.FC<{ onInviteSent: () => void }> = ({ onInviteSent
 };
 
 const GerenciarClientes: React.FC<GerenciarClientesProps> = ({ onBack, onOpenInvite, onSelectClient }) => {
-    const { clients, isLoading, hasMoreClients, loadMoreClients, isFetchingMore } = useContador();
+    const { clients, isLoading } = useContador();
 
     return (
          <section className="py-16">
@@ -130,25 +132,12 @@ const GerenciarClientes: React.FC<GerenciarClientesProps> = ({ onBack, onOpenInv
                              <tbody className="divide-y divide-slate-700">
                                 {isLoading && clients.length === 0 ? (
                                     <tr><td colSpan={4} className="text-center py-8 text-slate-400">Carregando clientes...</td></tr>
+                                ) : clients.length === 0 ? (
+                                    <tr><td colSpan={4} className="text-center py-8 text-slate-400">Nenhum cliente encontrado. Convide um novo cliente acima.</td></tr>
                                 ) : (
                                     clients.map(client => <ClientRow key={client.id} client={client} onSelect={onSelectClient} />)
                                 )}
                             </tbody>
-                             {hasMoreClients && (
-                                <tfoot>
-                                    <tr>
-                                        <td colSpan={4} className="text-center p-4">
-                                            <button
-                                                onClick={loadMoreClients}
-                                                disabled={isFetchingMore}
-                                                className="bg-slate-700 text-cyan-400 font-semibold px-6 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                {isFetchingMore ? 'Carregando...' : 'Carregar Mais'}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tfoot>
-                            )}
                         </table>
                     </div>
                  </div>

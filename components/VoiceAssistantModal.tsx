@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 // Corrected import to follow Gemini API guidelines
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob, FunctionDeclaration, Type } from '@google/genai';
-import { User } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { User } from '../contexts/AuthContext.tsx';
 import { Client } from '../api/contadorApi';
 import ChartComponent from './ChartComponent';
 

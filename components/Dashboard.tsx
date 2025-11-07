@@ -1,6 +1,8 @@
+
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
-import { useContador, Client } from '../contexts/ContadorContext';
+// FIX: Added file extensions to imports for module resolution.
+import { useAuth } from '../contexts/AuthContext.tsx';
+import { useContador, Client } from '../contexts/ContadorContext.tsx';
 
 // Import sub-components/pages for the dashboard
 import GerenciarClientes from './GerenciarClientes';

@@ -1,143 +1,191 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { auth, db, isConfigured } from '../firebase/config';
-import { 
-    onAuthStateChanged, 
-    signInWithEmailAndPassword, 
-    signOut, 
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth, db } from '../firebase/config';
+import {
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
-    User as FirebaseUser 
+    signOut,
+    User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { Client } from './ContadorContext';
 import { demoCredentials } from '../firebase/credentials';
 
-type UserRole = 'contador' | 'gestor' | 'saas_admin';
-type UserStatus = 'active' | 'pending';
+// --- Types ---
+export type UserRole = 'contador' | 'gestor' | 'admin';
 
 export interface User {
-    id: string; // Firebase Auth UID
-    name: string;
+    id: string;
     email: string;
+    name: string;
     role: UserRole;
-    status: UserStatus;
+    status: 'active' | 'pending';
+    clientDetails?: Client | null; // For 'gestor' role
 }
 
 interface AuthContextType {
     user: User | null;
-    isLoggedIn: boolean;
-    isLoading: boolean;
-    login: (email: string, password: string) => Promise<void>;
-    register: (name: string, email: string, password: string) => Promise<void>;
+    authLoading: boolean;
+    pendingApproval: boolean;
+    login: (email: string, pass: string) => Promise<void>;
+    register: (name: string, email: string, pass: string) => Promise<void>;
+    registerAndActivateGestor: (name: string, email: string, pass: string, clientId: string) => Promise<void>;
     logout: () => Promise<void>;
+    bypassLogin: (role: UserRole) => void;
 }
 
+// --- Context Definition ---
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Helper para buscar o perfil do usuário no Firestore
-const fetchUserProfile = async (firebaseUser: FirebaseUser): Promise<User | null> => {
-    // Fallback para admin, se o e-mail corresponder, mesmo que o db não esteja pronto
-    const adminEmail = demoCredentials.adminEmail || 'admin@contaflux.ia';
-    if(firebaseUser.email === adminEmail) {
-        return {
-            id: firebaseUser.uid,
-            email: adminEmail,
-            name: 'Admin',
-            role: 'saas_admin',
-            status: 'active',
-        }
-    }
-    
-    if (!db) return null; // Se não for admin, e não houver db, não há perfil para buscar.
-    
-    const userDocRef = doc(db, "users", firebaseUser.uid);
-    const userDoc = await getDoc(userDocRef);
-
-    if (userDoc.exists()) {
-        const data = userDoc.data();
-        return {
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            name: data.name,
-            role: data.role,
-            status: data.status,
-        };
-    }
-    
-    return null;
-}
-
+// --- Provider Component ---
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [pendingApproval, setPendingApproval] = useState(false);
 
     useEffect(() => {
-        if (!isConfigured || !auth) {
-            setUser(null);
-            setIsLoading(false);
+        if (!auth || !db) {
+            setAuthLoading(false);
             return;
         }
 
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            if (firebaseUser) {
-                const userProfile = await fetchUserProfile(firebaseUser);
-                setUser(userProfile);
-            } else {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+            // FIX: Wrapped in try/catch/finally to gracefully handle offline errors
+            // when fetching user data from Firestore after auth state changes.
+            try {
+                if (firebaseUser) {
+                    const userDocRef = doc(db, 'users', firebaseUser.uid);
+                    const userDoc = await getDoc(userDocRef);
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data() as Omit<User, 'id'>;
+                        
+                        if (userData.status === 'pending') {
+                            setPendingApproval(true);
+                            setUser(null);
+                        } else {
+                            let clientDetails: Client | null = null;
+                            if (userData.role === 'gestor' && userData.clientDetails) {
+                               const clientRef = doc(db, 'clients', (userData.clientDetails as any).id);
+                               const clientDoc = await getDoc(clientRef);
+                               if(clientDoc.exists()) {
+                                   clientDetails = {id: clientDoc.id, ...clientDoc.data()} as Client;
+                               }
+                            }
+                            
+                            setUser({ id: firebaseUser.uid, ...userData, clientDetails });
+                            setPendingApproval(false);
+                        }
+                    } else {
+                        // This case might happen if a user exists in Auth but not Firestore
+                        setUser(null);
+                    }
+                } else {
+                    setUser(null);
+                    setPendingApproval(false);
+                }
+            } catch (error) {
+                console.error("Failed to fetch user data, possibly offline:", error);
+                // If we can't fetch user data, treat the user as logged out.
                 setUser(null);
+                setPendingApproval(false);
+            } finally {
+                setAuthLoading(false);
             }
-            setIsLoading(false);
         });
 
         return () => unsubscribe();
     }, []);
 
-    const login = async (email: string, password: string) => {
-        if (!isConfigured || !auth) {
-            throw new Error("A configuração do Firebase está incompleta. Funcionalidade de login desativada.");
-        }
-        await signInWithEmailAndPassword(auth, email, password);
-    };
-    
-    const register = async (name: string, email: string, password: string) => {
-        if (!isConfigured || !auth || !db) {
-            throw new Error("A configuração do Firebase está incompleta. Funcionalidade de registro desativada.");
-        }
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const firebaseUser = userCredential.user;
-
-        // Create a corresponding user document in Firestore
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        await setDoc(userDocRef, {
-            name: name,
-            email: email,
-            role: 'contador', // New users are always 'contador'
-            status: 'pending',   // They need approval from the admin
-            createdAt: serverTimestamp(),
-        });
+    const login = async (email: string, pass: string) => {
+        if (!auth) throw new Error("Firebase Auth not configured");
+        await signInWithEmailAndPassword(auth, email, pass);
     };
 
     const logout = async () => {
-        if (!isConfigured || !auth) {
-            setUser(null);
-            return;
-        }
+        if (!auth) return;
+        await signOut(auth);
+    };
+    
+    const register = async (name: string, email: string, pass: string) => {
+        if (!auth || !db) throw new Error("Firebase not configured");
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const newUser = userCredential.user;
+
+        // Create user document in Firestore
+        await setDoc(doc(db, 'users', newUser.uid), {
+            name,
+            email,
+            role: 'contador',
+            status: 'pending',
+        });
+        
+        // Sign out user until admin approves
         await signOut(auth);
     };
 
-    const value = {
-        user,
-        isLoggedIn: !isLoading && !!user && isConfigured,
-        isLoading,
-        login,
-        register,
-        logout,
+    const registerAndActivateGestor = async (name: string, email: string, pass: string, clientId: string) => {
+        if (!auth || !db) throw new Error("Firebase not configured");
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const newUser = userCredential.user;
+
+        const clientRef = doc(db, 'clients', clientId);
+
+        // Create user document in Firestore
+        await setDoc(doc(db, 'users', newUser.uid), {
+            name,
+            email,
+            role: 'gestor',
+            status: 'active',
+            clientDetails: {
+                id: clientId,
+                // store a reference or minimal data
+            }
+        });
+        
+        // Update client status to 'Ativo'
+        await updateDoc(clientRef, {
+            status: 'Ativo'
+        });
+
+        // Sign out user so they can log in fresh
+        await signOut(auth);
     };
 
-    return (
-        <AuthContext.Provider value={value}>
-            {children}
-        </AuthContext.Provider>
-    );
+    const bypassLogin = (role: UserRole) => {
+        setAuthLoading(true);
+        const mockClient: Client = {
+             id: 'client_123_mock',
+             name: 'Padaria Pão Quente LTDA',
+             email: 'gestor@paoquente.com',
+             contadorId: 'contador_123_mock',
+             status: 'Ativo',
+             createdAt: new Date().toISOString(),
+             financialData: {
+                month: 'Maio/2024',
+                revenue: 85000,
+                expenses: 53310,
+                topExpenseCategory: 'Fornecedores',
+                topExpenseValue: 34000
+            }
+        };
+
+        const mockUsers: Record<UserRole, User> = {
+            contador: { id: 'contador_123_mock', email: demoCredentials.contadorEmail, name: 'Contabilidade Exemplo', role: 'contador', status: 'active' },
+            gestor: { id: 'gestor_456_mock', email: 'gestor@paoquente.com', name: 'Gestor Pão Quente', role: 'gestor', status: 'active', clientDetails: mockClient },
+            admin: { id: 'admin_789_mock', email: demoCredentials.adminEmail, name: 'Admin Contaflux', role: 'admin', status: 'active' },
+        };
+        setUser(mockUsers[role]);
+        setPendingApproval(false);
+        setAuthLoading(false);
+    };
+
+    const value = { user, authLoading, pendingApproval, login, register, registerAndActivateGestor, logout, bypassLogin };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
+// --- Custom Hook ---
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
     if (context === undefined) {

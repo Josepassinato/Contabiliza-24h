@@ -1,6 +1,7 @@
-import { initializeApp, FirebaseApp } from 'firebase/app';
+
+import { initializeApp, FirebaseApp, deleteApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, Firestore, doc, getDoc, enableIndexedDbPersistence } from 'firebase/firestore';
 
 // As credenciais do Firebase agora são importadas de um arquivo dedicado.
 // Edite o arquivo 'firebase/credentials.ts' para configurar seu projeto.
@@ -24,6 +25,21 @@ if (missingKeys.length > 0 || !firebaseConfig.apiKey) { // Adicionada verificaç
         app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
+
+        // Habilita a persistência de dados offline para o Firestore.
+        // Isso armazena os dados localmente, permitindo que o app funcione offline
+        // e sincronize as alterações quando a conexão for restaurada.
+        enableIndexedDbPersistence(db)
+            .catch((err) => {
+                if (err.code == 'failed-precondition') {
+                    // Múltiplas abas abertas, a persistência só pode ser ativada em uma.
+                    console.warn('A persistência do Firestore falhou: múltiplas abas estão abertas.');
+                } else if (err.code == 'unimplemented') {
+                    // O navegador atual não suporta os recursos necessários para a persistência.
+                    console.warn('A persistência do Firestore não é suportada neste navegador.');
+                }
+            });
+
     } catch (e) {
         const error = e as Error;
         console.error("Falha ao inicializar o Firebase. Verifique se as credenciais no arquivo 'firebase/credentials.ts' estão corretas.", error);
@@ -35,36 +51,46 @@ if (missingKeys.length > 0 || !firebaseConfig.apiKey) { // Adicionada verificaç
 
 export const isConfigured = !configError;
 
-/**
- * Tenta realizar uma operação de leitura de baixo custo para verificar a conexão com o Firestore.
- * @returns Um objeto indicando o sucesso e uma mensagem de erro, se houver.
- */
+// FIX: Added and exported the testFirebaseConnection function.
 export const testFirebaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
-    if (!db) {
-        return { success: false, error: 'O cliente do Firestore não foi inicializado. Verifique as credenciais.' };
+    const essentialKeys = ['apiKey', 'authDomain', 'projectId'];
+    const missingKeys = essentialKeys.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
+    
+    if (missingKeys.length > 0 || !firebaseConfig.apiKey) {
+        return { success: false, error: "As credenciais do Firebase parecem estar incompletas no arquivo `firebase/credentials.ts`." };
     }
+    
+    const testAppName = `test-app-${Date.now()}`;
+    let testApp: FirebaseApp | null = null;
+    
     try {
-        // Tenta ler um documento que provavelmente não existe. É uma operação de baixo custo.
-        // Se a promessa for resolvida (mesmo que o doc não exista), a conexão está OK.
-        const testDocRef = doc(db, '_internal_test_collection', '_connection_test_doc');
-        await getDoc(testDocRef);
-        return { success: true };
-    } catch (e) {
-        const error = e as Error;
-        console.error('Falha no teste de conexão com o Firebase:', error);
+        testApp = initializeApp(firebaseConfig, testAppName);
+        const testDb = getFirestore(testApp);
         
-        let userMessage = 'Falha na conexão. Verifique se as credenciais estão corretas e se você tem acesso à internet.';
-        if (error.message.includes('permission-denied')) {
-            // Se as regras de segurança negarem, a conexão em si foi bem-sucedida.
-            return { success: true, error: 'Conectado, mas as Regras de Segurança negaram o acesso de leitura para o teste.' };
-        }
-        if (error.message.includes('Could not reach Firestore backend')) {
-            userMessage = 'Não foi possível conectar ao Firebase. Verifique sua conexão com a internet.';
-        }
+        await getDoc(doc(testDb, '_test_connection', 'doc'));
+        
+        return { success: true };
+    } catch (error: any) {
+        console.error("Firebase connection test failed:", error);
+        
+        let errorMessage = `Falha na conexão: ${error.message || 'Erro desconhecido'}`;
 
-        return { success: false, error: userMessage };
+        if (error.message && (error.message.includes('API key not valid') || error.message.includes('invalid-api-key'))) {
+            errorMessage = 'A Chave de API (apiKey) parece ser inválida. Verifique suas credenciais.';
+        } else if (error.message && error.message.includes('project ID')) {
+            errorMessage = 'O ID do Projeto (projectId) parece estar incorreto. Verifique suas credenciais.';
+        } else if (error.message && error.message.includes('permission-denied')) {
+            errorMessage = 'Conexão bem-sucedida, mas a permissão foi negada. Verifique suas Regras de Segurança do Firestore.';
+        } else if (error.message && error.message.includes('Failed to fetch')) {
+            errorMessage = 'Falha na conexão de rede. Verifique seu acesso à internet e se o domínio está autorizado no Firebase.';
+        }
+        
+        return { success: false, error: errorMessage };
+    } finally {
+        if (testApp) {
+            await deleteApp(testApp);
+        }
     }
 };
-
 
 export { auth, db, configError };

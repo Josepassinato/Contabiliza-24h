@@ -1,5 +1,7 @@
+
 import React from 'react';
-import { useAuth } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { useAuth } from '../contexts/AuthContext.tsx';
 
 interface ClienteDashboardProps {
     onOpenVoiceAssistant: () => void;

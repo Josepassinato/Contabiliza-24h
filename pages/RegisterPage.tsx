@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { useAuth } from '../contexts/AuthContext.tsx';
 import { useNotifier } from '../contexts/NotificationContext';
 
 interface RegisterPageProps {
@@ -15,21 +17,28 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin }) => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [pageError, setPageError] = useState<string | null>(null);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
+        setPageError(null);
         if (password !== confirmPassword) {
-            addNotification('As senhas não coincidem.', 'error');
+            const msg = 'As senhas não coincidem.';
+            addNotification(msg, 'error');
+            setPageError(msg);
             return;
         }
         if (password.length < 6) {
-            addNotification('A senha deve ter no mínimo 6 caracteres.', 'error');
+            const msg = 'A senha deve ter no mínimo 6 caracteres.';
+            addNotification(msg, 'error');
+            setPageError(msg);
             return;
         }
 
         setIsLoading(true);
         try {
             await register(name, email, password);
+            // On success, we switch to the success view, so we don't set loading to false here.
             setIsSuccess(true);
         } catch (error: any) {
             console.error(error);
@@ -40,7 +49,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin }) => {
                 message = 'Formato de e-mail inválido.';
             }
             addNotification(message, 'error');
-        } finally {
+            setPageError(message);
+            // On error, we stay on the form, so we must set loading to false to re-enable interaction.
             setIsLoading(false);
         }
     };
@@ -86,6 +96,13 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onNavigateToLogin }) => {
                             <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">Confirmar Senha</label>
                             <input type="password" id="confirmPassword" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500" />
                         </div>
+
+                        {pageError && (
+                            <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm rounded-md p-3 text-center">
+                                {pageError}
+                            </div>
+                        )}
+
                         <button
                             type="submit"
                             disabled={isLoading}

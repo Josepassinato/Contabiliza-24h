@@ -26,7 +26,8 @@ export const firebaseConfig = {
   apiKey: "AIzaSyAq9EWFRjZbfx9qhdNpseddHmHOmQANFyw",
   authDomain: "contaflux-ia.firebaseapp.com",
   projectId: "contaflux-ia",
-  storageBucket: "contaflux-ia.firebasestorage.app",
+  // FIX: Corrected storageBucket to the standard '.appspot.com' format for better SDK compatibility.
+  storageBucket: "contaflux-ia.appspot.com",
   messagingSenderId: "140831750091",
   appId: "1:140831750091:web:f6d1a9316195b3ad59e84e",
   measurementId: "G-T0Y8231LHT"

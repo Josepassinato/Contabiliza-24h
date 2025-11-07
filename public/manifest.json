@@ -1,6 +1,7 @@
 {
   "short_name": "Contaflux",
   "name": "Contaflux IA",
+  "description": "Uma proposta interativa para um sistema de agente de IA que se conecta a plataformas de contabilidade, oferecendo insights financeiros em tempo real para gestores através de uma interface de voz.",
   "icons": [
     {
       "src": "favicon.ico",

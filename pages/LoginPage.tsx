@@ -1,5 +1,7 @@
+
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+// FIX: Added file extension to import for module resolution.
+import { useAuth } from '../contexts/AuthContext.tsx';
 import { useNotifier } from '../contexts/NotificationContext';
 import { demoCredentials } from '../firebase/credentials';
 
@@ -8,7 +10,7 @@ interface LoginPageProps {
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
-    const { login } = useAuth();
+    const { login, bypassLogin } = useAuth();
     const { addNotification } = useNotifier();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -28,23 +30,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
             await login(email, password);
             // O App irá redirecionar através do AuthContext
         } catch (error: any) {
-            console.error(error);
+            console.error("Login failed:", error);
             let message = 'Falha no login.';
-            if (error.code === 'auth/operation-not-allowed') {
-                message = 'Erro: O login por E-mail/Senha não está habilitado no seu projeto Firebase. Por favor, ative-o no painel de Autenticação.';
-            } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                const isDemoUser = email === (demoCredentials.contadorEmail || 'contador@contaflux.ia') || 
-                                   email === (demoCredentials.adminEmail || 'admin@contaflux.ia');
-                if (isDemoUser) {
-                     message = `Credenciais de demonstração inválidas. Por favor, acesse seu painel do Firebase Authentication e crie o usuário '${email}' com a senha '123456'.`;
-                } else {
-                     message = 'Email ou senha inválidos.';
+
+            const isContadorDemo = email === (demoCredentials.contadorEmail || 'contador@contaflux.ia');
+            const isAdminDemo = email === (demoCredentials.adminEmail || 'admin@contaflux.ia');
+
+            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                message = 'Email ou senha inválidos.';
+                if (isContadorDemo || isAdminDemo) {
+                    message = 'A senha para a conta de demonstração está incorreta. A senha padrão é "123456".';
                 }
+            } else if (error.code === 'auth/operation-not-allowed') {
+                message = 'Erro: O login por E-mail/Senha não está habilitado no seu projeto Firebase.';
             } else if (error.code === 'auth/invalid-email') {
                 message = 'Formato de email inválido.';
+            } else if (error.code === 'auth/user-not-found') {
+                message = 'Usuário não encontrado.';
             }
+            
             addNotification(message, 'error');
-            setPageError(message); // Show error on the page
+            setPageError(message);
         } finally {
             setIsLoading(false);
         }
@@ -115,6 +121,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
                         <div className="flex justify-center gap-2">
                              <button onClick={() => handleDemoLogin('contador')} className="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">Contador</button>
                              <button onClick={() => handleDemoLogin('admin')} className="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">Admin</button>
+                        </div>
+                    </div>
+
+                    {/* Bypass Section */}
+                    <div className="text-center text-xs text-slate-500 pt-4 mt-4 border-t border-slate-700">
+                        <p className="mb-2 font-bold text-yellow-400">Acesso Direto (Desenvolvimento)</p>
+                        <p className="mb-3">Use estes botões para pular o login e ir direto para os painéis.</p>
+                        <div className="flex justify-center gap-2">
+                            <button onClick={() => bypassLogin('contador')} className="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded">Painel Contador</button>
+                            <button onClick={() => bypassLogin('gestor')} className="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded">Painel Gestor</button>
                         </div>
                     </div>
                 </main>

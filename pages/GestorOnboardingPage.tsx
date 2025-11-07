@@ -1,5 +1,9 @@
+
 import React, { useState } from 'react';
-import { Client } from '../contexts/ContadorContext';
+// FIX: Added file extensions to imports for module resolution.
+import { Client } from '../contexts/ContadorContext.tsx';
+import { useAuth } from '../contexts/AuthContext.tsx';
+import { useNotifier } from '../contexts/NotificationContext';
 
 interface GestorOnboardingPageProps {
     client: Client;
@@ -7,110 +11,63 @@ interface GestorOnboardingPageProps {
 }
 
 const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onComplete }) => {
-    const [step, setStep] = useState(1);
-    const [isLinkCopied, setIsLinkCopied] = useState(false);
-    const [isAuthorized, setIsAuthorized] = useState(false);
+    const { registerAndActivateGestor } = useAuth();
+    const { addNotification } = useNotifier();
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
+    const [pageError, setPageError] = useState<string | null>(null);
 
-    const accessLink = `https://contaflux.ia/chat/${client.id.substring(0, 8)}`;
-
-    const handleCopyLink = () => {
-        navigator.clipboard.writeText(accessLink);
-        setIsLinkCopied(true);
-        setTimeout(() => setIsLinkCopied(false), 2000);
-    };
-
-    const renderStep = () => {
-        switch (step) {
-            case 1: // Welcome
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Bem-vindo(a), {client.name.split(' ')[0]}!</h2>
-                        <p className="text-slate-400 mb-6">Você foi convidado para usar o assistente de IA da <span className="font-bold text-cyan-400">{client.name}</span>. Vamos configurar seu acesso seguro.</p>
-                        <button onClick={() => setStep(2)} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300">
-                            Iniciar Configuração
-                        </button>
-                    </div>
-                );
-            
-            case 2: // Data Authorization
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Passo 1: Autorização de Dados</h2>
-                        <p className="text-slate-400 mb-6">Para funcionar, o assistente de IA precisa analisar os dados financeiros que seu contador conecta. Garantimos a total segurança e privacidade das suas informações.</p>
-                        
-                        <div className="flex items-start p-4 rounded-lg bg-slate-700/50 border border-slate-600/50 mb-6">
-                            <input
-                                id="authorization"
-                                type="checkbox"
-                                checked={isAuthorized}
-                                onChange={(e) => setIsAuthorized(e.target.checked)}
-                                className="h-5 w-5 rounded border-slate-500 bg-slate-800 text-cyan-500 focus:ring-cyan-500 mt-1"
-                            />
-                            <label htmlFor="authorization" className="ml-3 text-sm text-slate-300">
-                                Eu autorizo o Contaflux IA a processar os dados financeiros da minha empresa para fornecer insights e respostas.
-                            </label>
-                        </div>
-
-                        <button 
-                            onClick={() => setStep(3)} 
-                            disabled={!isAuthorized}
-                            className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Continuar
-                        </button>
-                    </div>
-                );
-
-            case 3: // Facial Scan Simulation
-                return (
-                    <div>
-                         <h2 className="text-2xl font-bold text-white mb-2">Passo 2: Segurança com Face ID</h2>
-                         <p className="text-slate-400 mb-6">Para sua segurança, usaremos reconhecimento facial. É rápido e garante que só você acesse os dados.</p>
-                         <div className="w-48 h-48 mx-auto rounded-full border-4 border-dashed border-cyan-500/50 flex items-center justify-center my-8 animate-pulse">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                         </div>
-                         <button onClick={() => setStep(4)} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600">
-                             Simular Escaneamento Facial
-                         </button>
-                    </div>
-                );
-            case 4: // Final Step - Access Link and PWA instructions
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Passo 3: Seu Acesso Pessoal</h2>
-                        <p className="text-slate-400 mb-6">Sua conta está pronta! Use o link abaixo para acessar seu assistente sempre que precisar.</p>
-                        
-                        <div className="relative mb-6">
-                            <input type="text" readOnly value={accessLink} className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-3 pl-3 pr-28 text-slate-300"/>
-                            <button onClick={handleCopyLink} className="absolute right-1 top-1 bottom-1 bg-cyan-500 text-white font-semibold px-4 rounded-md text-sm hover:bg-cyan-600">
-                                {isLinkCopied ? 'Copiado!' : 'Copiar'}
-                            </button>
-                        </div>
-
-                        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
-                            <h3 className="font-bold text-white mb-3">Dica: Adicione à sua Tela de Início!</h3>
-                            <p className="text-sm text-slate-400 mb-3">Tenha o assistente a um toque de distância, como se fosse um app.</p>
-                             <ol className="text-sm space-y-2 text-slate-300">
-                                <li className="flex items-center gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center font-bold">1</span>
-                                    <span>No Safari, toque no ícone de <span className="font-bold">Compartilhar</span> <svg xmlns="http://www.w3.org/2000/svg" className="inline h-5 w-5 -mt-1" viewBox="0 0 20 20" fill="currentColor"><path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" /></svg>.</span>
-                                </li>
-                                <li className="flex items-center gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-slate-700 rounded-full flex items-center justify-center font-bold">2</span>
-                                    <span>Role e selecione <span className="font-bold">"Adicionar à Tela de Início"</span>.</span>
-                                </li>
-                            </ol>
-                        </div>
-                        
-                        <button onClick={onComplete} className="mt-8 w-full bg-green-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-green-600 transition-colors duration-300">
-                            Acessar o Assistente Agora
-                        </button>
-                    </div>
-                );
-            default:
-                return null;
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPageError(null);
+        if (password !== confirmPassword) {
+            const msg = 'As senhas não coincidem.';
+            addNotification(msg, 'error');
+            setPageError(msg);
+            return;
         }
+        if (password.length < 6) {
+            const msg = 'A senha deve ter no mínimo 6 caracteres.';
+            addNotification(msg, 'error');
+            setPageError(msg);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            await registerAndActivateGestor(client.name, client.email, password, client.id);
+            setIsSuccess(true);
+        } catch (error: any) {
+            console.error("Failed to register gestor:", error);
+            let message = "Falha ao criar conta. Tente novamente.";
+            if (error.code === 'auth/email-already-in-use') {
+                message = 'Este e-mail já está em uso por outra conta.';
+            } else if (error.code === 'auth/invalid-email') {
+                message = 'O formato do e-mail é inválido.';
+            } else if (error.code === 'auth/weak-password') {
+                message = 'A senha é muito fraca. Tente uma combinação mais forte.';
+            }
+            addNotification(message, "error");
+            setPageError(message);
+            setIsLoading(false); // Only set loading to false on error
+        }
+    };
+    
+    if (isSuccess) {
+        return (
+            <div className="min-h-screen bg-slate-900 text-slate-300 flex items-center justify-center p-4">
+                 <div className="w-full max-w-md text-center bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8">
+                     <h1 className="text-2xl font-bold text-green-400 mb-4">Conta Criada com Sucesso!</h1>
+                     <p className="text-slate-400 mb-6">Seu acesso ao assistente de IA foi configurado. Você já pode fazer o login.</p>
+                     <button onClick={onComplete} className="w-full bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600">
+                         Ir para a Página de Login
+                     </button>
+                </div>
+            </div>
+        );
     }
+
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-300 flex items-center justify-center p-4">
@@ -124,11 +81,62 @@ const GestorOnboardingPage: React.FC<GestorOnboardingPageProps> = ({ client, onC
                         Contaflux <span className="text-cyan-400">IA</span>
                       </h1>
                     </div>
-                    <h1 className="text-4xl font-extrabold text-white">Configuração de Acesso</h1>
+                    <h1 className="text-4xl font-extrabold text-white">Finalize seu Cadastro</h1>
                  </header>
 
                 <main className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-8 transition-all duration-500">
-                   {renderStep()}
+                   <p className="text-center text-slate-400 mb-6">
+                       Bem-vindo(a), <span className="font-bold text-white">{client.name}</span>! Defina uma senha para acessar seu assistente de IA.
+                   </p>
+                   <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                            <input
+                                type="email"
+                                id="email"
+                                value={client.email}
+                                readOnly
+                                className="w-full bg-slate-700/80 border border-slate-600 rounded-md py-2 px-3 text-slate-400 cursor-not-allowed"
+                            />
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1">Crie uma Senha</label>
+                            <input
+                                type="password"
+                                id="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Mínimo 6 caracteres"
+                                required
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            />
+                        </div>
+                         <div>
+                            <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-1">Confirme a Senha</label>
+                            <input
+                                type="password"
+                                id="confirmPassword"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                className="w-full bg-slate-700/50 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            />
+                        </div>
+                        
+                        {pageError && (
+                            <div className="bg-red-500/20 border border-red-500/50 text-red-300 text-sm rounded-md p-3 text-center">
+                                {pageError}
+                            </div>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={isLoading}
+                            className="w-full flex items-center justify-center bg-cyan-500 text-white font-semibold px-8 py-3 rounded-lg hover:bg-cyan-600 transition-colors duration-300 disabled:opacity-50"
+                        >
+                            {isLoading ? 'Configurando...' : 'Criar Conta e Acessar'}
+                        </button>
+                   </form>
                 </main>
              </div>
         </div>
