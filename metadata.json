@@ -1,5 +1,5 @@
 {
-  "name": "Contaflux IA - Proposta de Sistema",
+  "name": "Contaflux IA -",
   "description": "Uma proposta interativa para um sistema de agente de IA que se conecta a plataformas de contabilidade, oferecendo insights financeiros em tempo real para gestores através de uma interface de voz.",
   "requestFramePermissions": [
     "microphone"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifier } from '../contexts/NotificationContext';
+import { demoCredentials } from '../firebase/credentials';
 
 interface LoginPageProps {
     onNavigateToRegister: () => void;
@@ -32,8 +33,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
             if (error.code === 'auth/operation-not-allowed') {
                 message = 'Erro: O login por E-mail/Senha não está habilitado no seu projeto Firebase. Por favor, ative-o no painel de Autenticação.';
             } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                const isDemoUser = email === (process.env.REACT_APP_CONTADOR_EMAIL || 'contador@contaflux.ia') || 
-                                   email === (process.env.REACT_APP_ADMIN_EMAIL || 'admin@contaflux.ia');
+                const isDemoUser = email === (demoCredentials.contadorEmail || 'contador@contaflux.ia') || 
+                                   email === (demoCredentials.adminEmail || 'admin@contaflux.ia');
                 if (isDemoUser) {
                      message = `Credenciais de demonstração inválidas. Por favor, acesse seu painel do Firebase Authentication e crie o usuário '${email}' com a senha '123456'.`;
                 } else {
@@ -52,8 +53,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
     // Funções para login rápido de demonstração
     const handleDemoLogin = (role: 'contador' | 'admin') => {
        const demoEmails = {
-            contador: process.env.REACT_APP_CONTADOR_EMAIL || 'contador@contaflux.ia',
-            admin: process.env.REACT_APP_ADMIN_EMAIL || 'admin@contaflux.ia',
+            contador: demoCredentials.contadorEmail || 'contador@contaflux.ia',
+            admin: demoCredentials.adminEmail || 'admin@contaflux.ia',
         };
        setEmail(demoEmails[role]);
        setPassword('123456'); // Senha padrão para os usuários de demonstração

@@ -60,50 +60,72 @@ async function decodeAudioData(
   return buffer;
 }
 
-// --- Function Calling Definition ---
+// Optimized helper for performance
+function createPcmBlob(data: Float32Array): Blob {
+  const l = data.length;
+  const int16 = new Int16Array(l);
+  for (let i = 0; i < l; i++) {
+    int16[i] = data[i] * 32768;
+  }
+  return {
+    data: encode(new Uint8Array(int16.buffer)),
+    mimeType: 'audio/pcm;rate=16000',
+  };
+}
+
+// --- Function Calling Definitions ---
 const displayFinancialChart: FunctionDeclaration = {
   name: 'displayFinancialChart',
   parameters: {
     type: Type.OBJECT,
-    description: 'Exibe um gráfico de barras com dados financeiros.',
     properties: {
       title: {
         type: Type.STRING,
-        description: 'O título do gráfico. Ex: "Detalhamento de Despesas de Maio/2024".',
       },
-      data: {
+      labels: {
         type: Type.ARRAY,
-        description: 'Uma lista de itens para plotar no gráfico.',
         items: {
-          type: Type.OBJECT,
-          properties: {
-            label: {
-              type: Type.STRING,
-              description: 'O rótulo da barra. Ex: "Fornecedores".',
-            },
-            value: {
-              type: Type.NUMBER,
-              description: 'O valor numérico da barra. Ex: 12000.',
-            },
-          },
-           required: ['label', 'value'],
+          type: Type.STRING,
         },
       },
+      values: {
+         type: Type.ARRAY,
+         items: {
+            type: Type.NUMBER,
+         },
+      },
     },
-    required: ['title', 'data'],
+    required: ['title', 'labels', 'values'],
   },
+};
+
+const sendEmail: FunctionDeclaration = {
+  name: 'sendEmail',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      recipientEmail: { type: Type.STRING },
+      subject: { type: Type.STRING },
+      body: { type: Type.STRING },
+    },
+    required: ['recipientEmail', 'subject', 'body'],
+  }
 };
 
 
 const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClose, user, isDemo, clientContext }) => {
     const [status, setStatus] = useState<AssistantStatus>('idle');
+    const [history, setHistory] = useState<ChatMessage[]>([]);
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    
+    // Refs for live data to avoid re-rendering on every message chunk
     const userTranscriptRef = useRef('');
     const assistantTranscriptRef = useRef('');
-    const [currentTurn, setCurrentTurn] = useState<ChatMessage | null>(null);
-    const [history, setHistory] = useState<ChatMessage[]>([]);
-    
-    // State for function calling (charts)
     const chartDataRef = useRef<{ title: string; data: { label: string; value: number }[] } | null>(null);
+
+    // State to force UI updates for live transcript at a controlled interval
+    const [, forceUpdate] = useState(0);
+    const renderIntervalRef = useRef<number | null>(null);
 
     // Audio processing refs
     const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
@@ -117,30 +139,132 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
 
     const getSystemPrompt = useCallback(() => {
         if (isDemo) {
-            return `Você é um assistente de IA para contabilidade chamado Contaflux. Você está em modo de demonstração. Seu objetivo é mostrar suas capacidades a um contador que está avaliando seu software. Use os dados financeiros fictícios a seguir para responder: Mês: Maio/2024, Faturamento Bruto: R$125.000, Despesas Totais: R$89.000 (detalhes: Fornecedores R$35.000, Aluguel R$12.000, Folha de Pagamento R$42.000). Seja conciso, amigável e proativo. Se o usuário pedir um gráfico, use a função 'displayFinancialChart'. Ao final de uma interação útil, pergunte se o usuário deseja receber um resumo das informações por e-mail.`;
+            // FIX: Added extensive new data points for employees and operations.
+            return `Você é um assistente de IA para contabilidade chamado Contaflux, em modo de demonstração para a empresa 'Padaria Pão Quente LTDA'.
+
+**Dados Disponíveis (use apenas estes dados):**
+
+- **Faturamento Bruto (Últimos 6 Meses):**
+  - Maio/2024: 85000
+  - Abril/2024: 82000
+  - Março/2024: 88000
+  - Fevereiro/2024: 79000
+  - Janeiro/2024: 75000
+  - Dezembro/2023: 95000
+
+- **Despesas (Maio/2024):**
+  - Fornecedores: 34000
+  - Folha de Pagamento: 12000
+  - Aluguel: 5500
+  - Impostos (Folha + Simples): 8460 (3360 + 5100)
+  - Utilitários (Energia/Água): 2800
+  - Outros (Software/Internet): 550
+
+- **Folha de Pagamento (Maio/2024):**
+  - Total de Funcionários: 4
+  - Funcionário 1: Nome: Carlos Silva, Função: Padeiro Chefe, Salário Bruto: 3500, INSS: 280, Outros Descontos: 150
+  - Funcionário 2: Nome: Mariana Costa, Função: Confeiteira, Salário Bruto: 2800, INSS: 210, Outros Descontos: 100
+  - Funcionário 3: Nome: João Almeida, Função: Atendente, Salário Bruto: 2200, INSS: 165, Outros Descontos: 80
+  - Funcionário 4: Nome: Ana Pereira, Função: Serviços Gerais, Salário Bruto: 1800, INSS: 135, Outros Descontos: 50
+
+- **Dados Operacionais (Últimos 6 Meses):**
+  - Maio/2024: Vendas Realizadas: 1250, Notas Fiscais Emitidas: 1245
+  - Abril/2024: Vendas Realizadas: 1210, Notas Fiscais Emitidas: 1208
+  - Março/2024: Vendas Realizadas: 1300, Notas Fiscais Emitidas: 1295
+  - Fevereiro/2024: Vendas Realizadas: 1150, Notas Fiscais Emitidas: 1148
+  - Janeiro/2024: Vendas Realizadas: 1100, Notas Fiscais Emitidas: 1100
+  - Dezembro/2023: Vendas Realizadas: 1500, Notas Fiscais Emitidas: 1492
+
+**Instruções:**
+1.  Seja conciso, amigável e proativo.
+2.  Ao citar valores, formate-os como moeda (ex: "R$ 85.000").
+3.  **Para exibir gráficos, OBRIGATORIAMENTE use a função 'displayFinancialChart'.**
+4.  **Regra CRÍTICA para Gráficos:** Os parâmetros 'labels' (textos) e 'values' (números) DEVEM ser arrays com o mesmo número de itens.
+    - **Exemplo CORRETO de argumentos para a função 'displayFinancialChart':**
+      \`\`\`json
+      {
+        "title": "Faturamento Bruto (Últimos 4 Meses)",
+        "labels": ["Maio/2024", "Abril/2024", "Março/2024", "Fevereiro/2024"],
+        "values": [85000, 82000, 88000, 79000]
+      }
+      \`\`\`
+5.  **Se o usuário pedir para enviar um e-mail, use a função 'sendEmail'.**`;
         }
         if (clientContext?.financialData) {
             const data = clientContext.financialData;
-            return `Você é um assistente de IA para a empresa ${clientContext.name}. Responda perguntas com base nos seguintes dados financeiros de ${data.month}: Faturamento Bruto: R$${data.revenue}, Despesas Totais: R$${data.expenses}. A principal categoria de despesa foi ${data.topExpenseCategory} com R$${data.topExpenseValue}. Seja direto e preciso. Se pedirem um gráfico, use a ferramenta 'displayFinancialChart'.`;
+            const outrasDespesas = data.expenses - data.topExpenseValue;
+            
+            return `Você é um assistente de IA para a empresa ${clientContext.name}.
+
+**Dados Disponíveis (Mês: ${data.month}):**
+- Faturamento Bruto: ${data.revenue}
+- Despesas Totais: ${data.expenses}
+- Principal Despensa (${data.topExpenseCategory}): ${data.topExpenseValue}
+- Outras Despesas: ${outrasDespesas > 0 ? outrasDespesas : 0}
+
+**Instruções:**
+1. Ao citar valores, formate como moeda (ex: "R$ ${data.revenue.toLocaleString('pt-BR')}").
+2. Para exibir gráficos, OBRIGATORIAMENTE use a função 'displayFinancialChart'.
+3. **Regra CRÍTICA para Gráficos:** Os parâmetros 'labels' (textos) e 'values' (números) DEVEM ser arrays com o mesmo número de itens.
+   - **Exemplo CORRETO de argumentos para a função 'displayFinancialChart':**
+     \`\`\`json
+     {
+       "title": "Detalhamento de Despesas (${data.month})",
+       "labels": ["${data.topExpenseCategory}", "Outras Despesas"],
+       "values": [${data.topExpenseValue}, ${outrasDespesas > 0 ? outrasDespesas : 0}]
+     }
+     \`\`\`
+4. **Se o usuário pedir para enviar um e-mail, use a função 'sendEmail'.**
+
+Seja direto e preciso.`;
         }
         return 'Você é um assistente de IA para contabilidade. Responda às perguntas sobre finanças, impostos e gestão de forma geral, já que nenhum dado de cliente específico foi carregado.';
     }, [isDemo, clientContext]);
     
-    
+    const stopSession = useCallback(() => {
+        if (renderIntervalRef.current) {
+            clearInterval(renderIntervalRef.current);
+            renderIntervalRef.current = null;
+        }
+
+        sessionPromiseRef.current?.then(session => {
+            session.close();
+            sessionPromiseRef.current = null;
+        });
+
+        if (mediaStreamRef.current) {
+            mediaStreamRef.current.getTracks().forEach(track => track.stop());
+            mediaStreamRef.current = null;
+        }
+
+        scriptProcessorRef.current?.disconnect();
+        mediaStreamSourceRef.current?.disconnect();
+        audioContextRef.current?.close().catch(console.error);
+        outputAudioContextRef.current?.close().catch(console.error);
+
+        audioSourcesRef.current.forEach(source => source.stop());
+        audioSourcesRef.current.clear();
+        nextAudioStartTimeRef.current = 0;
+        
+        setStatus('idle');
+    }, []);
+
     const startSession = useCallback(async () => {
+        setErrorMessage(null);
         if (!process.env.API_KEY) {
             console.error("API_KEY is not set.");
+            setErrorMessage("A chave de API para a IA da Gemini não foi configurada no ambiente.");
             setStatus('error');
             return;
         }
 
         setStatus('listening');
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        renderIntervalRef.current = window.setInterval(() => forceUpdate(c => c + 1), 250);
 
         try {
-            // FIX: Cast window to any to allow for webkitAudioContext for cross-browser compatibility.
             audioContextRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-            // FIX: Cast window to any to allow for webkitAudioContext for cross-browser compatibility.
             outputAudioContextRef.current = new ((window as any).AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
             
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -154,7 +278,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                     systemInstruction: getSystemPrompt(),
                     inputAudioTranscription: {},
                     outputAudioTranscription: {},
-                    tools: [{ functionDeclarations: [displayFinancialChart] }],
+                    tools: [{ functionDeclarations: [displayFinancialChart, sendEmail] }],
                 },
                 callbacks: {
                     onopen: () => {
@@ -165,11 +289,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                         
                         scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
                             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                            const pcmBlob: Blob = {
-                                // FIX: Wrap the ArrayBuffer in a Uint8Array to match the 'encode' function's expected parameter type.
-                                data: encode(new Uint8Array(new Int16Array(inputData.map(x => x * 32768)).buffer)),
-                                mimeType: 'audio/pcm;rate=16000',
-                            };
+                            const pcmBlob = createPcmBlob(inputData);
                             sessionPromiseRef.current?.then((session) => {
                                 session.sendRealtimeInput({ media: pcmBlob });
                             });
@@ -178,59 +298,52 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                         scriptProcessorRef.current.connect(audioContextRef.current.destination);
                     },
                     onmessage: async (message: LiveServerMessage) => {
-                        // Handle transcriptions
                         if (message.serverContent?.inputTranscription) {
                             userTranscriptRef.current += message.serverContent.inputTranscription.text;
-                             setCurrentTurn({ user: userTranscriptRef.current, assistant: assistantTranscriptRef.current, chartData: chartDataRef.current });
                         }
                         if (message.serverContent?.outputTranscription) {
                             assistantTranscriptRef.current += message.serverContent.outputTranscription.text;
-                             setCurrentTurn({ user: userTranscriptRef.current, assistant: assistantTranscriptRef.current, chartData: chartDataRef.current });
                         }
                         
                         if (message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data) {
                             setStatus('speaking');
                         }
 
-                        // Handle Function Calling
                         if (message.toolCall?.functionCalls) {
                             for (const fc of message.toolCall.functionCalls) {
-                                if (fc.name === 'displayFinancialChart') {
-                                    try {
-                                        const args: any = fc.args;
-
-                                        if (!args || typeof args !== 'object') throw new Error("Argumentos da função estão faltando ou não são um objeto.");
-                                        const { title, data } = args;
-                                        if (typeof title !== 'string' || !Array.isArray(data)) throw new Error("Tipos inválidos para título ou dados nos argumentos.");
-
-                                        const isValidData = data.every((item: any) =>
-                                            item && typeof item === 'object' &&
-                                            typeof item.label === 'string' &&
-                                            typeof item.value === 'number' &&
-                                            !isNaN(item.value)
-                                        );
-
-                                        if (!isValidData) throw new Error("Estrutura inválida para itens no array de dados.");
-
-                                        const newChartData = { title, data };
-                                        chartDataRef.current = newChartData;
-                                        setCurrentTurn(prev => ({ user: prev?.user ?? userTranscriptRef.current, assistant: assistantTranscriptRef.current, chartData: newChartData }));
-
-                                        sessionPromiseRef.current?.then((session) => {
-                                            session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok, o gráfico foi exibido." } } });
-                                        });
-
-                                    } catch (error) {
-                                        console.error("Erro ao processar a chamada de função displayFinancialChart:", error);
-                                        sessionPromiseRef.current?.then((session) => {
-                                            session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { error: (error as Error).message } } });
-                                        });
+                                try {
+                                    const args: any = fc.args;
+                                    if (fc.name === 'displayFinancialChart') {
+                                        const isValidData = args && typeof args.title === 'string' && Array.isArray(args.labels) && Array.isArray(args.values) && args.labels.length === args.values.length && args.labels.length > 0;
+                                        if (isValidData) {
+                                            const reconstructedData = args.labels.map((label: string, index: number) => ({ label: label, value: args.values[index] }));
+                                            chartDataRef.current = { title: args.title, data: reconstructedData };
+                                            sessionPromiseRef.current?.then((session) => {
+                                                session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: "ok, o gráfico foi exibido." } } });
+                                            });
+                                        } else {
+                                            throw new Error("Dados do gráfico malformados. 'labels' e 'values' devem ser arrays de mesmo comprimento.");
+                                        }
+                                    } else if (fc.name === 'sendEmail') {
+                                        if (args.recipientEmail && args.subject && args.body) {
+                                            console.log('Simulating email send:', args);
+                                            const result = `E-mail de teste enviado para ${args.recipientEmail}.`;
+                                            sessionPromiseRef.current?.then((session) => {
+                                                session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result } } });
+                                            });
+                                        } else {
+                                            throw new Error("Parâmetros de e-mail ausentes ou inválidos.");
+                                        }
                                     }
+                                } catch (error) {
+                                    console.error("Erro ao processar a chamada de função:", error);
+                                    sessionPromiseRef.current?.then((session) => {
+                                        session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { error: `Erro interno: ${(error as Error).message}` } } });
+                                    });
                                 }
                             }
                         }
 
-                        // Handle Audio
                         const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
                         if (base64Audio && outputAudioContextRef.current) {
                             const outputCtx = outputAudioContextRef.current;
@@ -253,7 +366,6 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                             audioSourcesRef.current.add(source);
                         }
 
-                        // Handle Turn Completion
                         if (message.serverContent?.turnComplete) {
                             const finalUserTranscript = userTranscriptRef.current;
                             const finalAssistantTranscript = assistantTranscriptRef.current;
@@ -263,50 +375,33 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                                 setHistory(prev => [...prev, { user: finalUserTranscript, assistant: finalAssistantTranscript, chartData: finalChartData }]);
                             }
 
-                            // Reset for next turn
                             userTranscriptRef.current = '';
                             assistantTranscriptRef.current = '';
                             chartDataRef.current = null;
-                            setCurrentTurn(null);
                         }
                     },
                     onerror: (e: ErrorEvent) => {
                         console.error('Session error:', e);
+                        const detailedError = `Ocorreu um erro de conexão (${e.message || 'Network error'}). Verifique sua conexão com a internet e certifique-se de que sua chave de API da Gemini (API_KEY no arquivo .env) está correta e habilitada para uso.`;
+                        setErrorMessage(detailedError);
                         setStatus('error');
+                        stopSession();
                     },
                     onclose: (e: CloseEvent) => {
                         console.log('Session closed');
+                        stopSession();
                     },
                 }
             });
         } catch (error) {
             console.error('Failed to start session:', error);
+            const detailedError = `Falha ao iniciar a sessão de áudio. Verifique as permissões do microfone. (${(error as Error).message})`;
+            setErrorMessage(detailedError);
             setStatus('error');
+            stopSession();
         }
-    }, [getSystemPrompt]);
+    }, [getSystemPrompt, stopSession]);
     
-    const stopSession = useCallback(() => {
-        sessionPromiseRef.current?.then(session => {
-            session.close();
-            sessionPromiseRef.current = null;
-        });
-
-        if (mediaStreamRef.current) {
-            mediaStreamRef.current.getTracks().forEach(track => track.stop());
-            mediaStreamRef.current = null;
-        }
-
-        scriptProcessorRef.current?.disconnect();
-        mediaStreamSourceRef.current?.disconnect();
-        audioContextRef.current?.close();
-        outputAudioContextRef.current?.close();
-
-        audioSourcesRef.current.forEach(source => source.stop());
-        audioSourcesRef.current.clear();
-        nextAudioStartTimeRef.current = 0;
-        
-        setStatus('idle');
-    }, []);
 
     useEffect(() => {
         if (isOpen) {
@@ -323,15 +418,15 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
         stopSession();
         onClose();
         setHistory([]);
-        setCurrentTurn(null);
     };
 
     const handleClear = () => {
         setHistory([]);
-        setCurrentTurn(null);
         userTranscriptRef.current = '';
         assistantTranscriptRef.current = '';
         chartDataRef.current = null;
+        setErrorMessage(null);
+        forceUpdate(c => c + 1);
     };
     
     const getStatusIndicator = () => {
@@ -339,7 +434,7 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
             case 'listening': return { text: 'Ouvindo...', color: 'border-cyan-500' };
             case 'processing': return { text: 'Processando...', color: 'border-yellow-500' };
             case 'speaking': return { text: 'Falando...', color: 'border-green-500' };
-            case 'error': return { text: 'Erro na Conexão', color: 'border-red-500' };
+            case 'error': return { text: 'Erro', color: 'border-red-500' };
             default: return { text: 'Inativo', color: 'border-slate-600' };
         }
     };
@@ -361,6 +456,13 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                 
                 {/* Chat Area */}
                 <div className="flex-grow p-4 overflow-y-auto space-y-6 scroll-smooth">
+                    {status === 'error' && (
+                        <div className="bg-red-900/50 border border-red-500/50 text-red-300 text-sm rounded-lg p-3 mb-4">
+                            <p className="font-bold mb-1 text-center text-red-200">Erro na Conexão</p>
+                            <p className="text-center text-xs">{errorMessage}</p>
+                        </div>
+                    )}
+
                     {history.map((turn, index) => (
                         <div key={index}>
                             <p className="text-cyan-400 font-semibold mb-1">Você:</p>
@@ -370,13 +472,13 @@ const VoiceAssistantModal: React.FC<VoiceAssistantModalProps> = ({ isOpen, onClo
                             {turn.chartData && <div className="mt-4 ml-4"><ChartComponent title={turn.chartData.title} data={turn.chartData.data} /></div>}
                         </div>
                     ))}
-                    {currentTurn && (
+                    {(userTranscriptRef.current || assistantTranscriptRef.current) && (
                          <div>
                             <p className="text-cyan-400 font-semibold mb-1">Você:</p>
-                            <p className="ml-4 text-slate-300">{currentTurn.user}</p>
+                            <p className="ml-4 text-slate-300">{userTranscriptRef.current}</p>
                             <p className="text-green-400 font-semibold mt-3 mb-1">Assistente:</p>
-                            <p className="ml-4 text-slate-300">{currentTurn.assistant}</p>
-                             {currentTurn.chartData && <div className="mt-4 ml-4"><ChartComponent title={currentTurn.chartData.title} data={currentTurn.chartData.data} /></div>}
+                            <p className="ml-4 text-slate-300">{assistantTranscriptRef.current}</p>
+                             {chartDataRef.current && <div className="mt-4 ml-4"><ChartComponent title={chartDataRef.current.title} data={chartDataRef.current.data} /></div>}
                         </div>
                     )}
                 </div>

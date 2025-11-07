@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
-import { auth, db } from '../firebase/config';
+import { auth, db, isConfigured } from '../firebase/config';
 import { 
     onAuthStateChanged, 
     signInWithEmailAndPassword, 
@@ -8,6 +8,7 @@ import {
     User as FirebaseUser 
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { demoCredentials } from '../firebase/credentials';
 
 type UserRole = 'contador' | 'gestor' | 'saas_admin';
 type UserStatus = 'active' | 'pending';
@@ -33,7 +34,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Helper para buscar o perfil do usuário no Firestore
 const fetchUserProfile = async (firebaseUser: FirebaseUser): Promise<User | null> => {
-    if (!db) return null;
+    // Fallback para admin, se o e-mail corresponder, mesmo que o db não esteja pronto
+    const adminEmail = demoCredentials.adminEmail || 'admin@contaflux.ia';
+    if(firebaseUser.email === adminEmail) {
+        return {
+            id: firebaseUser.uid,
+            email: adminEmail,
+            name: 'Admin',
+            role: 'saas_admin',
+            status: 'active',
+        }
+    }
+    
+    if (!db) return null; // Se não for admin, e não houver db, não há perfil para buscar.
+    
     const userDocRef = doc(db, "users", firebaseUser.uid);
     const userDoc = await getDoc(userDocRef);
 
@@ -46,19 +60,8 @@ const fetchUserProfile = async (firebaseUser: FirebaseUser): Promise<User | null
             role: data.role,
             status: data.status,
         };
-    } else {
-        // Fallback para admin, se o e-mail corresponder e o documento não existir
-        const adminEmail = process.env.REACT_APP_ADMIN_EMAIL || 'admin@contaflux.ia';
-        if(firebaseUser.email === adminEmail) {
-            return {
-                id: firebaseUser.uid,
-                email: adminEmail,
-                name: 'Admin',
-                role: 'saas_admin',
-                status: 'active',
-            }
-        }
     }
+    
     return null;
 }
 
@@ -67,7 +70,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        if (!auth) {
+        if (!isConfigured || !auth) {
+            setUser(null);
             setIsLoading(false);
             return;
         }
@@ -86,12 +90,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const login = async (email: string, password: string) => {
-        if (!auth) throw new Error("Firebase Auth não foi configurado.");
+        if (!isConfigured || !auth) {
+            throw new Error("A configuração do Firebase está incompleta. Funcionalidade de login desativada.");
+        }
         await signInWithEmailAndPassword(auth, email, password);
     };
     
     const register = async (name: string, email: string, password: string) => {
-        if (!auth || !db) throw new Error("Firebase não foi configurado.");
+        if (!isConfigured || !auth || !db) {
+            throw new Error("A configuração do Firebase está incompleta. Funcionalidade de registro desativada.");
+        }
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const firebaseUser = userCredential.user;
 
@@ -107,13 +115,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const logout = async () => {
-        if (!auth) throw new Error("Firebase Auth não foi configurado.");
+        if (!isConfigured || !auth) {
+            setUser(null);
+            return;
+        }
         await signOut(auth);
     };
 
     const value = {
         user,
-        isLoggedIn: !isLoading && !!user,
+        isLoggedIn: !isLoading && !!user && isConfigured,
         isLoading,
         login,
         register,

@@ -7,6 +7,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import HeroSection from './components/HeroSection';
 import FeaturesSection from './components/FeaturesSection';
+import ProblemSolutionSection from './components/ProblemSolutionSection';
 import Dashboard from './components/Dashboard';
 import VoiceAssistantModal from './components/VoiceAssistantModal';
 import ClienteDashboard from './components/ClienteDashboard';
@@ -18,8 +19,8 @@ import SaaSAdminDashboard from './pages/SaaSAdminDashboard';
 import GestorOnboardingPage from './pages/GestorOnboardingPage';
 
 // Firebase config check
-import { isFirebaseConfigured } from './firebase/config';
-import FirebaseConfigError from './components/FirebaseConfigError';
+import { isConfigured } from './firebase/config';
+import FirebaseConfigError from './components/FirebaseConfigError'; // Import the detailed error component
 
 // A simple enum for app pages/views
 enum Page {
@@ -42,6 +43,12 @@ const App: React.FC = () => {
 
     // Effect to handle routing based on auth state
     useEffect(() => {
+        if (!isConfigured) {
+             // If Firebase is not configured, we don't proceed with auth-dependent logic
+             setIsVoiceAssistantOpen(false); // Ensure modal is closed
+             return;
+        }
+
         if (!isLoading) {
             if (isLoggedIn) {
                 // If a gestor was just invited and is now logged in, they should see their dashboard.
@@ -79,16 +86,16 @@ const App: React.FC = () => {
         setCurrentPage(Page.Landing);
     };
 
+    // Render Firebase config error if not configured
+    if (!isConfigured) {
+        return <FirebaseConfigError />;
+    }
+
     // Render loading state
     if (isLoading) {
         return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Carregando...</div>;
     }
     
-    // Render Firebase config error if not configured
-    if (!isFirebaseConfigured) {
-        return <FirebaseConfigError />;
-    }
-
     // Render based on auth status and current page
     const renderContent = () => {
         if (!isLoggedIn) {
@@ -115,6 +122,7 @@ const App: React.FC = () => {
                             <main>
                                 <HeroSection onLogin={() => setCurrentPage(Page.Login)} onOpenVoiceAssistant={() => handleOpenVoiceAssistant(null, true)} />
                                 <FeaturesSection />
+                                <ProblemSolutionSection /> {/* Added ProblemSolutionSection here */}
                             </main>
                             <Footer />
                         </>
@@ -159,6 +167,7 @@ const App: React.FC = () => {
         <div className="bg-slate-900 text-slate-200 min-h-screen font-sans">
             {isLoggedIn && user?.status === 'active' && <Header isLoggedIn={true} onLogout={handleLogout} />}
             {renderContent()}
+            {/* FIX: Corrected the prop name for clientContext */}
             <VoiceAssistantModal 
                 isOpen={isVoiceAssistantOpen} 
                 onClose={handleCloseVoiceAssistant} 
