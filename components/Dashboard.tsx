@@ -5,13 +5,13 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import { useContador, Client } from '../contexts/ContadorContext.tsx';
 
 // Import sub-components/pages for the dashboard
-import GerenciarClientes from './GerenciarClientes';
-import GerenciarConexoes from './GerenciarConexoes';
-import Configuracoes from './Configuracoes';
-import ClientDetailPage from '../pages/ClientDetailPage';
-import GuidesPage from '../pages/GuidesPage';
-import ApiConnectionGuidePage from '../pages/ApiConnectionGuidePage';
-import ClientOnboardingGuidePage from '../pages/ClientOnboardingGuidePage';
+import GerenciarClientes from './GerenciarClientes.tsx';
+import GerenciarConexoes from './GerenciarConexoes.tsx';
+import Configuracoes from './Configuracoes.tsx';
+import ClientDetailPage from '../pages/ClientDetailPage.tsx';
+import GuidesPage from '../pages/GuidesPage.tsx';
+import ApiConnectionGuidePage from '../pages/ApiConnectionGuidePage.tsx';
+import ClientOnboardingGuidePage from '../pages/ClientOnboardingGuidePage.tsx';
 
 
 // A simple type for dashboard views

@@ -1,5 +1,6 @@
+
 import React from 'react';
-import MobileMockup from './MobileMockup';
+import MobileMockup from './MobileMockup.tsx';
 
 interface HeroSectionProps {
     onLogin: () => void;

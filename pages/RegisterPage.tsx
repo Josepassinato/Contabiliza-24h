@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 // FIX: Added file extension to import for module resolution.
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { useNotifier } from '../contexts/NotificationContext';
+import { useNotifier } from '../contexts/NotificationContext.tsx';
 
 interface RegisterPageProps {
     onNavigateToLogin: () => void;

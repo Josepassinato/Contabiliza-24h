@@ -1,20 +1,18 @@
-
-
 import React, { useState } from 'react';
-// FIX: Added file extension to import for module resolution.
 import { Platform } from '../contexts/ContadorContext.tsx';
 
 interface ConnectionModalProps {
     isOpen: boolean;
     onClose: () => void;
     platform: Platform | null;
-    onConnect: (platformId: string, connect: boolean) => void;
+    onSave: (platformId: string, credentials: { apiKey: string, apiSecret: string }) => Promise<void>;
+    onDisconnect: (platformId: string) => Promise<void>;
 }
 
-const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, platform, onConnect }) => {
+const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, platform, onSave, onDisconnect }) => {
     const [apiKey, setApiKey] = useState('');
     const [apiSecret, setApiSecret] = useState('');
-    const [isConnecting, setIsConnecting] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     if (!isOpen || !platform) {
         return null;
@@ -22,19 +20,22 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, plat
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsConnecting(true);
-        // In a real app, this would validate and save the keys
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        onConnect(platform.id, true);
-        setIsConnecting(false);
+        setIsProcessing(true);
+        await onSave(platform.id, { apiKey, apiSecret });
+        setIsProcessing(false);
+        onClose();
     };
     
-    const handleDisconnect = () => {
-        onConnect(platform.id, false);
+    const handleDisconnect = async () => {
+        setIsProcessing(true);
+        await onDisconnect(platform.id);
+        setIsProcessing(false);
+        onClose();
     };
 
     const renderContent = () => {
-        switch (platform.connectionType) {
+        // FIX: Changed platform.connectionType to platform.connection_type to match the data model.
+        switch (platform.connection_type) {
             case 'api_key':
                 return (
                     <form onSubmit={handleSubmit}>
@@ -69,8 +70,8 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, plat
                         </main>
                         <footer className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center">
                              {platform.connected && (
-                                <button type="button" onClick={handleDisconnect} className="text-red-400 hover:text-red-300 text-sm font-semibold">
-                                    Desconectar
+                                <button type="button" onClick={handleDisconnect} disabled={isProcessing} className="text-red-400 hover:text-red-300 text-sm font-semibold disabled:opacity-50">
+                                    {isProcessing ? 'Processando...' : 'Desconectar'}
                                 </button>
                             )}
                             <div className="flex-grow flex justify-end gap-3">
@@ -79,10 +80,10 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, plat
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={isConnecting || !apiKey || !apiSecret || platform.connected}
+                                    disabled={isProcessing || !apiKey || !apiSecret || platform.connected}
                                     className="bg-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:bg-cyan-600 disabled:opacity-50"
                                 >
-                                    {platform.connected ? 'Conectado' : (isConnecting ? 'Conectando...' : 'Conectar')}
+                                    {platform.connected ? 'Conectado' : (isProcessing ? 'Conectando...' : 'Conectar')}
                                 </button>
                             </div>
                         </footer>
@@ -107,8 +108,8 @@ const ConnectionModal: React.FC<ConnectionModalProps> = ({ isOpen, onClose, plat
                         </main>
                         <footer className="p-4 bg-slate-800/50 border-t border-slate-700 flex justify-between items-center">
                             {platform.connected && (
-                                <button type="button" onClick={handleDisconnect} className="text-red-400 hover:text-red-300 text-sm font-semibold">
-                                    Desconectar
+                                <button type="button" onClick={handleDisconnect} disabled={isProcessing} className="text-red-400 hover:text-red-300 text-sm font-semibold disabled:opacity-50">
+                                     {isProcessing ? 'Processando...' : 'Desconectar'}
                                 </button>
                             )}
                             <div className="flex-grow flex justify-end gap-3">

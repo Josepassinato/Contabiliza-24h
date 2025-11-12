@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 // FIX: Added file extensions to imports for module resolution.
 import { Client } from '../contexts/ContadorContext.tsx';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { useNotifier } from '../contexts/NotificationContext';
+import { useNotifier } from '../contexts/NotificationContext.tsx';
 
 interface GestorOnboardingPageProps {
     client: Client;

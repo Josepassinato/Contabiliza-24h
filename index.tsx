@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 // FIX: Added .tsx extension to ensure module resolution.
 import App from './App.tsx';
-import { NotificationProvider } from './contexts/NotificationContext';
+import { NotificationProvider } from './contexts/NotificationContext.tsx';
 // FIX: Added .tsx extension to ensure module resolution.
 import { AuthProvider } from './contexts/AuthContext.tsx';
 

@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Client, Platform, FinancialData, syncFinancialData } from '../api/contadorApi';
+import { Client, Platform, FinancialData } from '../api/contadorApi.ts';
 // FIX: Added file extension to import for module resolution.
 import { useContador } from '../contexts/ContadorContext.tsx';
-import { useNotifier } from '../contexts/NotificationContext';
-import ChartComponent from '../components/ChartComponent';
+import { useNotifier } from '../contexts/NotificationContext.tsx';
+import ChartComponent from '../components/ChartComponent.tsx';
 
 interface ClientDetailPageProps {
     client: Client;
@@ -13,24 +13,25 @@ interface ClientDetailPageProps {
 }
 
 const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClient, onBack, onOpenVoiceAssistant }) => {
-    const { platforms } = useContador();
+    // We get the full, up-to-date client list from the context
+    const { platforms, syncClientData, clients } = useContador();
     const { addNotification } = useNotifier();
-    const [client, setClient] = useState<Client>(initialClient);
+    
+    // Find the latest version of the client from the context to ensure data is fresh
+    const client = clients.find(c => c.id === initialClient.id) || initialClient;
+    
     const [isSyncing, setIsSyncing] = useState(false);
-
-    useEffect(() => {
-        // This effect ensures that if the initialClient prop updates (e.g., from a parent list),
-        // the component's internal state reflects that change.
-        setClient(initialClient);
-    }, [initialClient]);
 
     const handleSyncData = async () => {
         setIsSyncing(true);
         addNotification(`Sincronizando dados para ${client.name}...`, 'success');
         try {
-            const financialData = await syncFinancialData(client);
-            setClient(prevClient => ({ ...prevClient, financialData }));
-            addNotification(`Dados de ${client.name} sincronizados com sucesso!`, 'success');
+            const financialData = await syncClientData(client.id);
+            if (financialData) {
+                addNotification(`Dados de ${client.name} sincronizados com sucesso!`, 'success');
+            } else {
+                 throw new Error("Sync returned no data");
+            }
         } catch (error) {
             console.error("Failed to sync data", error);
             addNotification("Falha ao sincronizar dados.", "error");
@@ -40,12 +41,14 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
     };
 
     const handleDownloadPdf = () => {
-        if (!client.financialData) {
+        // FIX: Changed client.financialData to client.financial_data to match the data model.
+        if (!client.financial_data) {
             addNotification('Dados financeiros não estão disponíveis para gerar o relatório.', 'error');
             return;
         }
 
-        const data = client.financialData;
+        // FIX: Changed client.financialData to client.financial_data to match the data model.
+        const data = client.financial_data;
         const formattedRevenue = data.revenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const formattedExpenses = data.expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const formattedTopExpense = data.topExpenseValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -114,10 +117,14 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
         }
     };
     
-    const chartData = client.financialData ? [
-        { label: 'Faturamento', value: client.financialData.revenue },
-        { label: 'Despesas', value: client.financialData.expenses },
-        { label: `Principal Desp. (${client.financialData.topExpenseCategory})`, value: client.financialData.topExpenseValue },
+    // FIX: Changed client.financialData to client.financial_data to match the data model.
+    const chartData = client.financial_data ? [
+        // FIX: Changed client.financialData to client.financial_data to match the data model.
+        { label: 'Faturamento', value: client.financial_data.revenue },
+        // FIX: Changed client.financialData to client.financial_data to match the data model.
+        { label: 'Despesas', value: client.financial_data.expenses },
+        // FIX: Changed client.financialData to client.financial_data to match the data model.
+        { label: `Principal Desp. (${client.financial_data.topExpenseCategory})`, value: client.financial_data.topExpenseValue },
     ] : [];
 
 
@@ -139,7 +146,8 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
                          <div className="mt-4 md:mt-0 flex-shrink-0 flex items-center gap-2">
                              <button
                                 onClick={handleDownloadPdf}
-                                disabled={!client.financialData || isSyncing}
+                                // FIX: Changed client.financialData to client.financial_data to match the data model.
+                                disabled={!client.financial_data || isSyncing}
                                 className="bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
@@ -160,9 +168,11 @@ const ClientDetailPage: React.FC<ClientDetailPageProps> = ({ client: initialClie
                     {/* Financial Data Section */}
                     <div className="lg:col-span-2 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
                         <h2 className="text-2xl font-bold text-white mb-4">Dados Financeiros</h2>
-                        {client.financialData ? (
+                        {/* FIX: Changed client.financialData to client.financial_data to match the data model. */}
+                        {client.financial_data ? (
                            <div>
-                                <p className="text-slate-400 mb-6">Resumo financeiro para <span className="font-bold text-cyan-400">{client.financialData.month}</span>.</p>
+                                {/* FIX: Changed client.financialData to client.financial_data to match the data model. */}
+                                <p className="text-slate-400 mb-6">Resumo financeiro para <span className="font-bold text-cyan-400">{client.financial_data.month}</span>.</p>
                                 <ChartComponent title="Visão Geral Financeira" data={chartData} />
                            </div>
                         ) : (

@@ -1,9 +1,10 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import * as saasAdminApi from '../api/saasAdminApi';
-// FIX: Added file extension to import for module resolution.
-import { useAuth } from '../contexts/AuthContext.tsx';
-import { useNotifier } from '../contexts/NotificationContext';
+import { supabase, isSupabaseConfigured } from '../supabase/client.ts';
+import { useNotifier } from '../contexts/NotificationContext.tsx';
+import { User } from '../contexts/AuthContext.tsx';
+
+// Expand the user type for our needs here
+type Accountant = User & { clientCount: number };
 
 const statusClasses = {
     active: 'bg-green-500/20 text-green-400',
@@ -12,23 +13,49 @@ const statusClasses = {
 
 
 const SaaSAdminDashboard: React.FC = () => {
-    const { logout } = useAuth();
     const { addNotification } = useNotifier();
-    const [metrics, setMetrics] = useState<saasAdminApi.Metric[]>([]);
-    const [accountants, setAccountants] = useState<saasAdminApi.Accountant[]>([]);
+    const [accountants, setAccountants] = useState<Accountant[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const loadData = useCallback(async () => {
+        if (!isSupabaseConfigured) {
+            setIsLoading(false);
+            return;
+        }
         setIsLoading(true);
         try {
-            const [metricsData, accountantsData] = await Promise.all([
-                saasAdminApi.fetchDashboardMetrics(),
-                saasAdminApi.fetchAccountants(),
-            ]);
-            setMetrics(metricsData);
-            setAccountants(accountantsData.sort((a, b) => a.status === 'pending' ? -1 : 1)); // Show pending first
+            // Fetch all users with the role 'contador'
+            const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .in('role', ['contador', 'admin']); // Fetch both to see admins too if needed
+            
+            if (error) throw error;
+
+            // In a real app with many clients, this would be a performance bottleneck.
+            // A better approach is to use a PostgreSQL function (RPC) or maintain a client count
+            // on the users table that gets updated with triggers.
+            // For this demo, we fetch counts client-side.
+            const accountantsWithCounts = await Promise.all(
+                data.map(async (acc) => {
+                    const { count, error: countError } = await supabase
+                        .from('clients')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('contador_id', acc.id);
+                    
+                    return {
+                        ...acc,
+                        role: acc.role as 'contador' | 'admin',
+                        status: acc.status as 'active' | 'pending',
+                        clientCount: countError ? 0 : count || 0,
+                    };
+                })
+            );
+            
+            setAccountants(accountantsWithCounts.sort((a, b) => a.status === 'pending' ? -1 : 1));
+
         } catch (error) {
-            console.error("Failed to load SaaS admin data", error);
+            console.error("Failed to load SaaS admin data from Supabase", error);
             addNotification("Falha ao carregar dados do painel.", "error");
         } finally {
             setIsLoading(false);
@@ -40,8 +67,15 @@ const SaaSAdminDashboard: React.FC = () => {
     }, [loadData]);
 
     const handleApprove = async (userId: string) => {
+        if (!isSupabaseConfigured) return;
         try {
-            await saasAdminApi.updateUserStatus(userId, 'active');
+            const { error } = await supabase
+                .from('users')
+                .update({ status: 'active' })
+                .eq('id', userId);
+            
+            if (error) throw error;
+
             addNotification("Contador aprovado com sucesso!", "success");
             loadData(); // Refresh data
         } catch (error) {
@@ -55,21 +89,6 @@ const SaaSAdminDashboard: React.FC = () => {
             <main className="container mx-auto px-6 py-12">
                 <h1 className="text-3xl font-bold text-white mb-8">Painel do Administrador SaaS</h1>
                 
-                {/* Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-                    {isLoading ? Array.from({ length: 4 }).map((_, i) => (
-                         <div key={i} className="bg-slate-800/50 p-6 rounded-2xl animate-pulse"><div className="h-24 bg-slate-700 rounded"></div></div>
-                    )) : metrics.map(metric => (
-                        <div key={metric.name} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
-                            <p className="text-sm text-slate-400">{metric.name}</p>
-                            <p className="text-3xl font-bold text-white mt-2">{metric.value}</p>
-                            <p className={`text-sm mt-1 ${metric.changeType === 'increase' ? 'text-green-400' : 'text-red-400'}`}>
-                                {metric.change}
-                            </p>
-                        </div>
-                    ))}
-                </div>
-
                 {/* Accountants Table */}
                 <h2 className="text-2xl font-bold text-white mb-6">Contabilidades Cadastradas</h2>
                  <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl overflow-hidden">
@@ -100,7 +119,7 @@ const SaaSAdminDashboard: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 text-center">{acc.clientCount}</td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                                                {acc.status === 'pending' && (
+                                                {acc.status === 'pending' && acc.role === 'contador' && (
                                                     <button 
                                                         onClick={() => handleApprove(acc.id)}
                                                         className="bg-green-500 text-white font-semibold px-3 py-1 text-xs rounded-md hover:bg-green-600 transition-colors"

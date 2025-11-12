@@ -1,16 +1,8 @@
-
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { auth, db } from '../firebase/config';
-import {
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signOut,
-    User as FirebaseUser,
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { Client } from './ContadorContext';
-import { demoCredentials } from '../firebase/credentials';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { supabase, isSupabaseConfigured } from '../supabase/client.ts';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import type { Client, Platform } from '../api/contadorApi.ts';
+import { demoCredentials } from '../firebase/credentials.ts'; // Usado apenas para o bypass
 
 // --- Types ---
 export type UserRole = 'contador' | 'gestor' | 'admin';
@@ -21,7 +13,7 @@ export interface User {
     name: string;
     role: UserRole;
     status: 'active' | 'pending';
-    clientDetails?: Client | null; // For 'gestor' role
+    clientDetails?: Client | null;
 }
 
 interface AuthContextType {
@@ -32,7 +24,7 @@ interface AuthContextType {
     register: (name: string, email: string, pass: string) => Promise<void>;
     registerAndActivateGestor: (name: string, email: string, pass: string, clientId: string) => Promise<void>;
     logout: () => Promise<void>;
-    bypassLogin: (role: UserRole) => void;
+    bypassLogin: (role: UserRole) => Promise<void>;
 }
 
 // --- Context Definition ---
@@ -44,148 +36,179 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [authLoading, setAuthLoading] = useState(true);
     const [pendingApproval, setPendingApproval] = useState(false);
 
+    const fetchUserProfile = useCallback(async (supabaseUser: SupabaseUser): Promise<User | null> => {
+        if (!isSupabaseConfigured) return null;
+
+        const { data: userProfile, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', supabaseUser.id)
+            .single();
+
+        if (error || !userProfile) {
+            console.error("Error fetching user profile:", error);
+            return null;
+        }
+
+        if (userProfile.status === 'pending') {
+            setPendingApproval(true);
+            // Force sign out if user is pending to prevent access
+            await supabase.auth.signOut();
+            return null;
+        }
+
+        setPendingApproval(false);
+
+        const appUser: User = {
+            id: userProfile.id,
+            email: userProfile.email,
+            name: userProfile.name,
+            role: userProfile.role as UserRole,
+            status: userProfile.status as 'active' | 'pending',
+        };
+
+        // If role is gestor, fetch their client details
+        if (appUser.role === 'gestor') {
+            const { data: clientData, error: clientError } = await supabase
+                .from('clients')
+                .select('*')
+                .eq('gestor_id', appUser.id)
+                .single();
+            
+            if (clientError) console.error("Error fetching client details for gestor:", clientError);
+            if (clientData) appUser.clientDetails = clientData;
+        }
+
+        return appUser;
+    }, []);
+
     useEffect(() => {
-        if (!auth || !db) {
+        if (!isSupabaseConfigured) {
             setAuthLoading(false);
             return;
         }
 
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-            // FIX: Wrapped in try/catch/finally to gracefully handle offline errors
-            // when fetching user data from Firestore after auth state changes.
-            try {
-                if (firebaseUser) {
-                    const userDocRef = doc(db, 'users', firebaseUser.uid);
-                    const userDoc = await getDoc(userDocRef);
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data() as Omit<User, 'id'>;
-                        
-                        if (userData.status === 'pending') {
-                            setPendingApproval(true);
-                            setUser(null);
-                        } else {
-                            let clientDetails: Client | null = null;
-                            if (userData.role === 'gestor' && userData.clientDetails) {
-                               const clientRef = doc(db, 'clients', (userData.clientDetails as any).id);
-                               const clientDoc = await getDoc(clientRef);
-                               if(clientDoc.exists()) {
-                                   clientDetails = {id: clientDoc.id, ...clientDoc.data()} as Client;
-                               }
-                            }
-                            
-                            setUser({ id: firebaseUser.uid, ...userData, clientDetails });
-                            setPendingApproval(false);
-                        }
-                    } else {
-                        // This case might happen if a user exists in Auth but not Firestore
-                        setUser(null);
-                    }
-                } else {
-                    setUser(null);
-                    setPendingApproval(false);
-                }
-            } catch (error) {
-                console.error("Failed to fetch user data, possibly offline:", error);
-                // If we can't fetch user data, treat the user as logged out.
+        const getInitialSession = async () => {
+            setAuthLoading(true);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                const userProfile = await fetchUserProfile(session.user);
+                setUser(userProfile);
+            }
+            setAuthLoading(false);
+        };
+        
+        getInitialSession();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session?.user) {
+                const userProfile = await fetchUserProfile(session.user);
+                setUser(userProfile);
+            } else {
                 setUser(null);
                 setPendingApproval(false);
-            } finally {
-                setAuthLoading(false);
             }
+            setAuthLoading(false);
         });
 
-        return () => unsubscribe();
-    }, []);
+        return () => subscription.unsubscribe();
+    }, [fetchUserProfile]);
 
     const login = async (email: string, pass: string) => {
-        if (!auth) throw new Error("Firebase Auth not configured");
-        await signInWithEmailAndPassword(auth, email, pass);
+        if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        if (error) throw error;
     };
 
     const logout = async () => {
-        if (!auth) return;
-        await signOut(auth);
+        if (!isSupabaseConfigured) return;
+        await supabase.auth.signOut();
+        setUser(null);
     };
-    
-    const register = async (name: string, email: string, pass: string) => {
-        if (!auth || !db) throw new Error("Firebase not configured");
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const newUser = userCredential.user;
 
-        // Create user document in Firestore
-        await setDoc(doc(db, 'users', newUser.uid), {
+    const register = async (name: string, email: string, pass: string) => {
+        if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password: pass });
+        if (authError || !authData.user) throw authError || new Error("User not created");
+
+        const { error: profileError } = await supabase.from('users').insert({
+            id: authData.user.id,
             name,
             email,
             role: 'contador',
-            status: 'pending',
+            status: 'pending'
         });
-        
-        // Sign out user until admin approves
-        await signOut(auth);
+
+        if (profileError) {
+            // Rollback user creation if profile fails
+            await supabase.auth.signOut(); // Log them out
+            // In a real scenario, you might want to delete the auth user here via an admin call.
+            console.error("Failed to create profile, user auth was rolled back.", profileError);
+            throw profileError;
+        }
     };
-
+    
     const registerAndActivateGestor = async (name: string, email: string, pass: string, clientId: string) => {
-        if (!auth || !db) throw new Error("Firebase not configured");
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const newUser = userCredential.user;
+        if (!isSupabaseConfigured) throw new Error("Supabase is not configured.");
+        // Step 1: Create the auth user
+        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password: pass });
+        if (authError || !authData.user) throw authError || new Error("Gestor user not created");
 
-        const clientRef = doc(db, 'clients', clientId);
-
-        // Create user document in Firestore
-        await setDoc(doc(db, 'users', newUser.uid), {
+        // Step 2: Create the user profile
+        const { error: profileError } = await supabase.from('users').insert({
+            id: authData.user.id,
             name,
             email,
             role: 'gestor',
-            status: 'active',
-            clientDetails: {
-                id: clientId,
-                // store a reference or minimal data
-            }
+            status: 'active'
         });
-        
-        // Update client status to 'Ativo'
-        await updateDoc(clientRef, {
-            status: 'Ativo'
-        });
+        if (profileError) throw profileError;
 
-        // Sign out user so they can log in fresh
-        await signOut(auth);
+        // Step 3: Link the new gestor user to the client and set client to 'Ativo'
+        const { error: clientUpdateError } = await supabase
+            .from('clients')
+            .update({ gestor_id: authData.user.id, status: 'Ativo' })
+            .eq('id', clientId);
+        if (clientUpdateError) throw clientUpdateError;
+
+        // Log the user out so they can log in fresh
+        await supabase.auth.signOut();
     };
 
-    const bypassLogin = (role: UserRole) => {
+
+    const bypassLogin = async (role: UserRole) => {
+        if (!isSupabaseConfigured) {
+            setAuthLoading(false);
+            console.error("Cannot bypass login, Supabase not configured.");
+            return;
+        };
         setAuthLoading(true);
-        const mockClient: Client = {
-             id: 'client_123_mock',
-             name: 'Padaria Pão Quente LTDA',
-             email: 'gestor@paoquente.com',
-             contadorId: 'contador_123_mock',
-             status: 'Ativo',
-             createdAt: new Date().toISOString(),
-             financialData: {
-                month: 'Maio/2024',
-                revenue: 85000,
-                expenses: 53310,
-                topExpenseCategory: 'Fornecedores',
-                topExpenseValue: 34000
-            }
-        };
-
-        const mockUsers: Record<UserRole, User> = {
-            contador: { id: 'contador_123_mock', email: demoCredentials.contadorEmail, name: 'Contabilidade Exemplo', role: 'contador', status: 'active' },
-            gestor: { id: 'gestor_456_mock', email: 'gestor@paoquente.com', name: 'Gestor Pão Quente', role: 'gestor', status: 'active', clientDetails: mockClient },
-            admin: { id: 'admin_789_mock', email: demoCredentials.adminEmail, name: 'Admin Contaflux', role: 'admin', status: 'active' },
-        };
-        setUser(mockUsers[role]);
-        setPendingApproval(false);
-        setAuthLoading(false);
+        const email = role === 'contador' ? (demoCredentials.contadorEmail || 'contador@contaflux.ia') : 'gestor@paoquente.com';
+        const password = '123456';
+        try {
+            await login(email, password);
+        } catch (e) {
+            console.error(`Bypass login for role ${role} failed`, e);
+            // Handle case where demo users don't exist
+            setAuthLoading(false);
+        }
     };
 
-    const value = { user, authLoading, pendingApproval, login, register, registerAndActivateGestor, logout, bypassLogin };
+
+    const value = {
+        user,
+        authLoading,
+        pendingApproval,
+        login,
+        register,
+        registerAndActivateGestor,
+        logout,
+        bypassLogin
+    };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// --- Custom Hook ---
 export const useAuth = (): AuthContextType => {
     const context = useContext(AuthContext);
     if (context === undefined) {

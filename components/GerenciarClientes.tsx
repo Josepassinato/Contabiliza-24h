@@ -27,7 +27,8 @@ const ClientRow: React.FC<{ client: Client, onSelect: (client: Client) => void }
             </span>
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-            {new Date(client.createdAt).toLocaleDateString()}
+            {/* FIX: Changed client.createdAt to client.created_at to match the data model. */}
+            {new Date(client.created_at).toLocaleDateString()}
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
             <button onClick={() => onSelect(client)} className="text-cyan-400 hover:text-cyan-300">Detalhes</button>

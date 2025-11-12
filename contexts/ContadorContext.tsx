@@ -1,65 +1,66 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import * as contadorApi from '../api/contadorApi';
-import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '../supabase/client.ts';
+import { useAuth } from './AuthContext.tsx';
+import type { Client, Platform, FinancialData } from '../api/contadorApi.ts';
 
-// Re-export types from API module
-export type { Client, Platform, FinancialData } from '../api/contadorApi';
+export type { Client, Platform, FinancialData, ConnectionType } from '../api/contadorApi.ts';
+
+// --- Default platforms for a new accountant ---
+const INITIAL_PLATFORMS = [
+    { platform_ref_id: 'p1', name: 'Domínio Sistemas', logo: 'https://seeklogo.com/images/D/dominio-sistemas-logo-BBE2C464DE-seeklogo.com.png', connection_type: 'sync_agent' },
+    { platform_ref_id: 'p2', name: 'Conta Azul', logo: 'https://theme.zdassets.com/theme_assets/9339399/6579f15757913346452f33f67185061444f1240a.png', connection_type: 'api_key' },
+    { platform_ref_id: 'p3', name: 'Omie', logo: 'https://assets-global.website-files.com/61fe607f35754982635a9f5c/61fe607f35754955c45a9fa1_omie-logo-2-500x281.png', connection_type: 'api_key' },
+    { platform_ref_id: 'p4', name: 'QuickBooks', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Intuit_QuickBooks_logo.svg/2560px-Intuit_QuickBooks_logo.svg.png', connection_type: 'api_key' },
+    { platform_ref_id: 'p5', name: 'Bling', logo: 'https://cdn.bling.com.br/bling-logos/bling-icon-100.png', connection_type: 'api_key' },
+    { platform_ref_id: 'p6', name: 'Tiny ERP', logo: 'https://tiny.com.br/images/logo/tiny-symbol-blue.svg', connection_type: 'api_key' },
+    { platform_ref_id: 'p7', name: 'Sage Brasil', logo: 'https://www.sage.com/pt-br/static-assets/images/sage_com_logo.svg', connection_type: 'api_key' },
+    { platform_ref_id: 'p8', name: 'API Genérica', logo: 'https://cdn-icons-png.flaticon.com/512/2164/2164828.png', connection_type: 'generic_api' },
+];
 
 interface ContadorContextType {
-    clients: contadorApi.Client[];
-    platforms: contadorApi.Platform[];
+    clients: Client[];
+    platforms: Platform[];
     isLoading: boolean;
-    inviteClient: (name: string, email: string) => Promise<contadorApi.Client | null>;
-    togglePlatformConnection: (platformId: string) => Promise<void>;
+    inviteClient: (name: string, email: string) => Promise<Client | null>;
+    saveApiConnection: (platformId: string, credentials: { apiKey: string; apiSecret: string }) => Promise<void>;
+    disconnectPlatform: (platformId: string) => Promise<void>;
+    syncClientData: (clientId: string) => Promise<FinancialData | null>;
 }
 
 const ContadorContext = createContext<ContadorContextType | undefined>(undefined);
 
-// --- Mock Data for Demo/Bypass Mode ---
-const MOCK_PLATFORMS: contadorApi.Platform[] = [
-    { id: 'p1', name: 'Domínio Sistemas', logo: 'https://seeklogo.com/images/D/dominio-sistemas-logo-BBE2C464DE-seeklogo.com.png', connected: false, connectionType: 'sync_agent', contadorId: 'contador_123_mock' },
-    { id: 'p2', name: 'Conta Azul', logo: 'https://theme.zdassets.com/theme_assets/9339399/6579f15757913346452f33f67185061444f1240a.png', connected: true, connectionType: 'api_key', contadorId: 'contador_123_mock' },
-    { id: 'p3', name: 'Omie', logo: 'https://assets-global.website-files.com/61fe607f35754982635a9f5c/61fe607f35754955c45a9fa1_omie-logo-2-500x281.png', connected: false, connectionType: 'api_key', contadorId: 'contador_123_mock' },
-    { id: 'p4', name: 'QuickBooks', logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cf/Intuit_QuickBooks_logo.svg/2560px-Intuit_QuickBooks_logo.svg.png', connected: false, connectionType: 'api_key', contadorId: 'contador_123_mock' },
-];
-
-const MOCK_CLIENTS: contadorApi.Client[] = [
-    { id: 'c1', name: 'Padaria Pão Quente LTDA', email: 'gestor@paoquente.com', status: 'Ativo', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), contadorId: 'contador_123_mock' },
-    { id: 'c2', name: 'Oficina do Zé Reparos', email: 'ze@oficina.com', status: 'Pendente', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(), contadorId: 'contador_123_mock' },
-    { id: 'c3', name: 'Mercado da Esquina', email: 'compras@mercado.com', status: 'Ativo', createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(), contadorId: 'contador_123_mock' },
-];
-
-
 export const ContadorProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth();
-    const [clients, setClients] = useState<contadorApi.Client[]>([]);
-    const [platforms, setPlatforms] = useState<contadorApi.Platform[]>([]);
+    const [clients, setClients] = useState<Client[]>([]);
+    const [platforms, setPlatforms] = useState<Platform[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     const loadData = useCallback(async (contadorId: string) => {
+        if (!isSupabaseConfigured) return;
         setIsLoading(true);
-        // FIX: Detects if the user is a "mock" user from the bypass login system.
-        // If so, it loads pre-defined mock data instead of calling Firestore.
-        // This creates a stable, fast, and isolated "demo mode".
-        if (contadorId.endsWith('_mock')) {
-            await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-            setClients(MOCK_CLIENTS);
-            setPlatforms(MOCK_PLATFORMS);
-            setIsLoading(false);
-            return;
-        }
-
-        // Original logic for real, authenticated users.
         try {
-            const [clientsData, platformsData] = await Promise.all([
-                contadorApi.fetchClients(contadorId),
-                contadorApi.fetchPlatforms(contadorId)
-            ]);
-            setClients(clientsData);
-            setPlatforms(platformsData);
+            // Fetch clients and platforms in parallel
+            const clientPromise = supabase.from('clients').select('*').eq('contador_id', contadorId).order('created_at', { ascending: false });
+            const platformPromise = supabase.from('platforms').select('*').eq('contador_id', contadorId);
+
+            const [{ data: clientsData, error: clientError }, { data: platformsData, error: platformError }] = await Promise.all([clientPromise, platformPromise]);
+
+            if (clientError) throw clientError;
+            if (platformError) throw platformError;
+
+            setClients(clientsData || []);
+
+            // If the accountant has no platforms, it's likely their first login. Let's create them.
+            if (platformsData && platformsData.length === 0) {
+                const newPlatforms = INITIAL_PLATFORMS.map(p => ({ ...p, contador_id: contadorId }));
+                const { data: insertedPlatforms, error: insertError } = await supabase.from('platforms').insert(newPlatforms).select();
+                if (insertError) throw insertError;
+                setPlatforms(insertedPlatforms || []);
+            } else {
+                setPlatforms(platformsData || []);
+            }
         } catch (error) {
-            console.error("Failed to load contador data:", error);
+            console.error("Failed to load contador data from Supabase:", error);
             setClients([]);
             setPlatforms([]);
         } finally {
@@ -68,7 +69,7 @@ export const ContadorProvider: React.FC<{ children: ReactNode }> = ({ children }
     }, []);
 
     useEffect(() => {
-        if (user && user.role === 'contador') {
+        if (user && user.role === 'contador' && isSupabaseConfigured) {
             loadData(user.id);
         } else {
             setClients([]);
@@ -77,67 +78,102 @@ export const ContadorProvider: React.FC<{ children: ReactNode }> = ({ children }
         }
     }, [user, loadData]);
 
-    const inviteClient = async (name: string, email: string): Promise<contadorApi.Client | null> => {
-        if (!user || user.role !== 'contador') return null;
+    const inviteClient = async (name: string, email: string): Promise<Client | null> => {
+        if (!user || user.role !== 'contador' || !isSupabaseConfigured) return null;
         
-        // Handle mock user in demo mode
-        if (user.id.endsWith('_mock')) {
-            const newClient: contadorApi.Client = {
-                id: `mock_client_${Date.now()}`,
-                name,
-                email,
-                contadorId: user.id,
-                status: 'Pendente',
-                createdAt: new Date().toISOString(),
-            };
-            setClients(prev => [...prev, newClient].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-            return newClient;
+        try {
+            const { data, error } = await supabase
+                .from('clients')
+                .insert({
+                    name,
+                    email,
+                    contador_id: user.id,
+                    status: 'Pendente',
+                })
+                .select()
+                .single();
+            
+            if (error) throw error;
+
+            setClients(prev => [data, ...prev]);
+            return data;
+        } catch (error) {
+            console.error("Failed to invite client:", error);
+            return null;
         }
-        
-        // Original logic for real users
-        const newClient = await contadorApi.inviteClient(user.id, name, email);
-        if (newClient) {
-            setClients(prev => [...prev, newClient].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        }
-        return newClient;
     };
     
-    const togglePlatformConnection = async (platformId: string) => {
-        if (!user || user.role !== 'contador') return;
-
-        // Handle mock user in demo mode
-        if (user.id.endsWith('_mock')) {
-            setPlatforms(prev => 
-                prev.map(p => p.id === platformId ? { ...p, connected: !p.connected } : p)
-            );
-            return;
-        }
-
-        // Original logic for real users
-        const platform = platforms.find(p => p.id === platformId);
-        if (!platform) return;
-
-        const newConnectedState = !platform.connected;
-        await contadorApi.updatePlatformConnection(user.id, platformId, newConnectedState);
-        setPlatforms(prev => 
-            prev.map(p => p.id === platformId ? { ...p, connected: newConnectedState } : p)
-        );
+    const saveApiConnection = async (platformId: string, credentials: { apiKey: string; apiSecret: string }) => {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase
+            .from('platforms')
+            .update({ connected: true, credentials })
+            .eq('id', platformId);
+        
+        if (error) throw error;
+        setPlatforms(prev => prev.map(p => p.id === platformId ? { ...p, connected: true } : p));
     };
 
+    const disconnectPlatform = async (platformId: string) => {
+        if (!isSupabaseConfigured) return;
+        const { error } = await supabase
+            .from('platforms')
+            .update({ connected: false, credentials: null })
+            .eq('id', platformId);
+            
+        if (error) throw error;
+        setPlatforms(prev => prev.map(p => p.id === platformId ? { ...p, connected: false } : p));
+    };
+
+    const syncClientData = async (clientId: string): Promise<FinancialData | null> => {
+        if (!isSupabaseConfigured) return null;
+        try {
+            const clientName = clients.find(c => c.id === clientId)?.name || 'Cliente';
+            // Logic from backendApiClient to generate mock data, as we don't have a real external API
+            const nameHash = clientName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const baseRevenue = 80000 + (nameHash % 50000);
+            const revenue = baseRevenue + Math.floor(Math.random() * 20000) - 10000;
+            const expenses = revenue * (0.65 + Math.random() * 0.2);
+            const topExpenseValue = expenses * (0.3 + Math.random() * 0.2);
+            const expenseCategories = ['Fornecedores', 'Folha de Pagamento', 'Marketing', 'Aluguel', 'Impostos'];
+            const topExpenseCategory = expenseCategories[nameHash % expenseCategories.length];
+            
+            const financialData: FinancialData = {
+                month: 'Maio/2024',
+                revenue: parseFloat(revenue.toFixed(2)),
+                expenses: parseFloat(expenses.toFixed(2)),
+                topExpenseCategory,
+                topExpenseValue: parseFloat(topExpenseValue.toFixed(2)),
+            };
+
+            const { data, error } = await supabase
+                .from('clients')
+                .update({ financial_data: financialData })
+                .eq('id', clientId)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setClients(prev => prev.map(c => c.id === clientId ? data : c));
+            return financialData;
+        } catch (error) {
+            console.error("Failed to sync client data:", error);
+            return null;
+        }
+    };
 
     const value = {
         clients,
         platforms,
         isLoading,
         inviteClient,
-        togglePlatformConnection,
+        saveApiConnection,
+        disconnectPlatform,
+        syncClientData,
     };
 
-    return (
-        <ContadorContext.Provider value={value}>
-            {children}
-        </ContadorContext.Provider>
-    );
+    return <ContadorContext.Provider value={value}>{children}</ContadorContext.Provider>;
 };
 
 export const useContador = (): ContadorContextType => {

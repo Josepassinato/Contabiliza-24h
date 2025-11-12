@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 // FIX: Added file extension to import for module resolution.
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { useNotifier } from '../contexts/NotificationContext';
-import { demoCredentials } from '../firebase/credentials';
+import { useNotifier } from '../contexts/NotificationContext.tsx';
+import { demoCredentials } from '../firebase/credentials.ts';
 
 interface LoginPageProps {
     onNavigateToRegister: () => void;
@@ -31,22 +31,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToRegister }) => {
             // O App irá redirecionar através do AuthContext
         } catch (error: any) {
             console.error("Login failed:", error);
-            let message = 'Falha no login.';
+            let message = 'Falha no login. Verifique suas credenciais.';
 
-            const isContadorDemo = email === (demoCredentials.contadorEmail || 'contador@contaflux.ia');
-            const isAdminDemo = email === (demoCredentials.adminEmail || 'admin@contaflux.ia');
-
-            if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                message = 'Email ou senha inválidos.';
-                if (isContadorDemo || isAdminDemo) {
-                    message = 'A senha para a conta de demonstração está incorreta. A senha padrão é "123456".';
-                }
-            } else if (error.code === 'auth/operation-not-allowed') {
-                message = 'Erro: O login por E-mail/Senha não está habilitado no seu projeto Firebase.';
-            } else if (error.code === 'auth/invalid-email') {
-                message = 'Formato de email inválido.';
-            } else if (error.code === 'auth/user-not-found') {
-                message = 'Usuário não encontrado.';
+            if (error.message === 'USER_PENDING_APPROVAL') {
+                message = 'Sua conta está pendente de aprovação pelo administrador.';
+            } else if (error.message === 'INVALID_CREDENTIALS') {
+                message = 'E-mail ou senha inválidos.';
             }
             
             addNotification(message, 'error');

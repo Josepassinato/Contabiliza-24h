@@ -1,11 +1,10 @@
-
 import { initializeApp, FirebaseApp, deleteApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore, doc, getDoc, enableIndexedDbPersistence } from 'firebase/firestore';
 
 // As credenciais do Firebase agora são importadas de um arquivo dedicado.
 // Edite o arquivo 'firebase/credentials.ts' para configurar seu projeto.
-import { firebaseConfig } from './credentials';
+import { firebaseConfig } from './credentials.ts';
 
 // --- Initialization ---
 let app: FirebaseApp | null = null;

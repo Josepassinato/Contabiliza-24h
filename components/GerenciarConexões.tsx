@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 // FIX: Added file extension to import for module resolution.
 import { useContador, Platform } from '../contexts/ContadorContext.tsx';
@@ -31,6 +32,7 @@ const PlatformRow: React.FC<{ platform: Platform, onConfigure: (platform: Platfo
 
 
 const GerenciarConexoes: React.FC<GerenciarConexoesProps> = ({ onBack }) => {
+    // FIX: Replaced non-existent 'togglePlatformConnection' with 'saveApiConnection' and 'disconnectPlatform' from the context.
     const { platforms, isLoading, saveApiConnection, disconnectPlatform } = useContador();
     const { addNotification } = useNotifier();
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +43,7 @@ const GerenciarConexoes: React.FC<GerenciarConexoesProps> = ({ onBack }) => {
         setIsModalOpen(true);
     };
 
+    // FIX: Replaced 'handleConnect' with 'handleSaveConnection' and 'handleDisconnect' to match context and modal props.
     const handleSaveConnection = async (platformId: string, credentials: { apiKey: string, apiSecret: string }) => {
         try {
             await saveApiConnection(platformId, credentials);
@@ -97,6 +100,7 @@ const GerenciarConexoes: React.FC<GerenciarConexoesProps> = ({ onBack }) => {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 platform={selectedPlatform}
+                // FIX: Passed correct props 'onSave' and 'onDisconnect' to the ConnectionModal.
                 onSave={handleSaveConnection}
                 onDisconnect={handleDisconnect}
             />

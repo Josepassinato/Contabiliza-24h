@@ -1,33 +1,31 @@
 
-
 import React, { useState, useEffect } from 'react';
-// FIX: The `logout` function is now destructured from `useAuth` to handle user sign-out.
-import { useAuth } from './contexts/AuthContext';
-import { ContadorProvider, Client } from './contexts/ContadorContext';
-import { isConfigured } from './firebase/config';
+import { useAuth } from './contexts/AuthContext.tsx';
+import { ContadorProvider, Client } from './contexts/ContadorContext.tsx';
+import { isSupabaseConfigured } from './supabase/client.ts';
 
 // Pages
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import GestorOnboardingPage from './pages/GestorOnboardingPage';
-import SaaSAdminDashboard from './pages/SaaSAdminDashboard';
+import LoginPage from './pages/LoginPage.tsx';
+import RegisterPage from './pages/RegisterPage.tsx';
+import GestorOnboardingPage from './pages/GestorOnboardingPage.tsx';
+import SaaSAdminDashboard from './pages/SaaSAdminDashboard.tsx';
 
 // Components
-import Header from './components/Header';
-import Footer from './components/Footer';
-import Dashboard from './components/Dashboard';
-import ClienteDashboard from './components/ClienteDashboard';
-import VoiceAssistantModal from './components/VoiceAssistantModal';
-import FirebaseConfigError from './components/FirebaseConfigError';
-import HeroSection from './components/HeroSection';
-import FeaturesSection from './components/FeaturesSection';
-import ProblemSolutionSection from './components/ProblemSolutionSection';
+import Header from './components/Header.tsx';
+import Footer from './components/Footer.tsx';
+import Dashboard from './components/Dashboard.tsx';
+import ClienteDashboard from './components/ClienteDashboard.tsx';
+import VoiceAssistantModal from './components/VoiceAssistantModal.tsx';
+import SupabaseConfigError from './components/SupabaseConfigError.tsx';
+import HeroSection from './components/HeroSection.tsx';
+import FeaturesSection from './components/FeaturesSection.tsx';
+import ProblemSolutionSection from './components/ProblemSolutionSection.tsx';
 
 type AppView = 'landing' | 'login' | 'register' | 'onboarding';
 
 const App: React.FC = () => {
-    if (!isConfigured) {
-        return <FirebaseConfigError />;
+    if (!isSupabaseConfigured) {
+        return <SupabaseConfigError />;
     }
 
     const { user, authLoading, pendingApproval, logout } = useAuth();
@@ -119,7 +117,6 @@ const App: React.FC = () => {
                     <h1 className="text-2xl font-bold text-yellow-400 mb-4">Aguardando Aprovação</h1>
                     <p className="text-slate-400 mb-6">Sua conta foi criada e está aguardando a aprovação do administrador. Você será notificado por e-mail.</p>
                      <button
-                        // FIX: The `logout` function from `useAuth` is used here to correctly handle sign-out.
                         onClick={logout}
                         className="bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors duration-300 text-sm"
                     >
